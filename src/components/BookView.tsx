@@ -55,7 +55,6 @@ import { BookProject, BookSession } from '../types/book';
 import { bookService } from '../services/bookService';
 import { BookAnalytics } from './BookAnalytics';
 import { CustomSelect } from './CustomSelect';
-import { logger } from '../utils/logger';
 import { pdfService } from '../services/pdfService';
 
 // ============================================================================
@@ -1117,19 +1116,6 @@ export function BookView({
     setTimeout(() => setPdfProgress(0), 2000);
   };
 
-  const handleDownloadLogs = () => {
-    const logsContent = logger.exportLogs();
-    const blob = new Blob([logsContent], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `pustakam-generation-log-${new Date().toISOString().replace(/:/g, '-')}.txt`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  };
-
   const handleStartEditing = () => {
     if (currentBook?.finalBook) {
       setEditedContent(currentBook.finalBook);
@@ -1525,9 +1511,6 @@ export function BookView({
                             </p>
                           </div>
                         </div>
-                        <button onClick={handleDownloadLogs} className="btn btn-secondary btn-sm">
-                          <Download size={14} /> Download Logs
-                        </button>
                       </div>
                       <button onClick={handleStartAssembly} className="btn btn-primary w-full btn-lg">
                         <Box className="w-5 h-5" />
