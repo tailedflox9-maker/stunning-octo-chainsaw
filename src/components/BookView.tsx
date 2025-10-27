@@ -1,4 +1,4 @@
-// src/components/BookView.tsx - REFACTORED WITH PROPER FORMATTING
+// src/components/BookView.tsx - COMPLETE WITH PAUSE/RESUME
 import React, { useEffect, ReactNode, useMemo, useState, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -50,6 +50,7 @@ import {
   EyeOff,
   Search,
   CheckCircle2,
+  Pause,
 } from 'lucide-react';
 import { BookProject, BookSession } from '../types/book';
 import { bookService } from '../services/bookService';
@@ -72,7 +73,7 @@ interface GenerationStatus {
     generatedText?: string;
   };
   totalProgress: number;
-  status: 'idle' | 'generating' | 'completed' | 'error';
+  status: 'idle' | 'generating' | 'completed' | 'error' | 'paused';
   logMessage?: string;
   totalWordsGenerated?: number;
   aiStage?: 'analyzing' | 'writing' | 'examples' | 'polishing' | 'complete';
@@ -107,6 +108,9 @@ interface BookViewProps {
   isMobile?: boolean;
   generationStatus?: GenerationStatus;
   generationStats?: GenerationStats;
+  onPauseGeneration?: (bookId: string) => void;
+  onResumeGeneration?: (book: BookProject, session: BookSession) => void;
+  isGenerating?: boolean;
 }
 
 interface ReadingModeProps {
@@ -237,12 +241,17 @@ const EmbeddedProgressPanel = ({
   generationStatus,
   stats,
   onCancel,
+  onPause,
+  onResume,
 }: {
   generationStatus: GenerationStatus;
   stats: GenerationStats;
   onCancel?: () => void;
+  onPause?: () => void;
+  onResume?: () => void;
 }) => {
   const streamBoxRef = useRef<HTMLDivElement>(null);
+  const isPaused = generationStatus.status === 'paused';
 
   useEffect(() => {
     if (streamBoxRef.current && generationStatus.currentModule?.generatedText) {
@@ -258,11 +267,11 @@ const EmbeddedProgressPanel = ({
         {/* Header */}
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
-            <Brain className="w-5 h-5 text-blue-400" />
-            <h3 className="text-lg font-semibold">Writing chapters...</h3>
+            {isPaused ? <Pause className="w-5 h-5 text-yellow-400" /> : <Brain className="w-5 h-5 text-blue-400" />}
+            <h3 className="text-lg font-semibold">{isPaused ? 'Generation Paused' : 'Writing chapters...'}</h3>
           </div>
           <div className="flex items-center gap-3">
-            <div className="px-3 py-1 bg-blue-500/20 border border-blue-500/30 rounded-full text-xs font-semibold text-blue-300">
+            <div className={`px-3 py-1 border rounded-full text-xs font-semibold ${isPaused ? 'bg-yellow-500/20 border-yellow-500/30 text-yellow-300' : 'bg-blue-500/20 border-blue-500/30 text-blue-300'}`}>
               {stats.completedModules}/{stats.totalModules} Complete
             </div>
             <div className="text-sm font-mono text-zinc-400">
@@ -276,14 +285,20 @@ const EmbeddedProgressPanel = ({
           progress={overallProgress}
           active={generationStatus.status === 'generating'}
         />
+        
+        {/* Visual cue for paused state */}
+        {isPaused ? (
+          <div className="mt-5 mb-4 text-center text-zinc-500 text-sm h-14 flex items-center justify-center">
+            <p>Progress is saved. You can resume at any time.</p>
+          </div>
+        ) : (
+          <div className="mt-5 mb-4">
+            <PixelAnimation />
+          </div>
+        )}
 
-        {/* Pixel Animation */}
-        <div className="mt-5 mb-4">
-          <PixelAnimation />
-        </div>
-
-        {/* Current Module Status */}
-        {generationStatus.currentModule && generationStatus.currentModule.generatedText && (
+        {/* Current Module Status (only when not paused) */}
+        {!isPaused && generationStatus.currentModule && generationStatus.currentModule.generatedText && (
           <div className="bg-black/40 border border-zinc-800/50 rounded-lg p-4 mt-4">
             <div className="flex items-center justify-between mb-3">
               <h4 className="font-semibold text-white flex items-center gap-2">
@@ -311,16 +326,37 @@ const EmbeddedProgressPanel = ({
         <div className="mt-6 flex items-center justify-between">
           <div className="flex items-center gap-2 text-sm text-zinc-500">
             <Clock className="w-4 h-4 text-yellow-500" />
-            <span>{formatTime(stats.estimatedTimeRemaining)} remaining</span>
+            <span>{isPaused ? 'Paused' : `${formatTime(stats.estimatedTimeRemaining)} remaining`}</span>
           </div>
-          {onCancel && (
-            <button
-              onClick={onCancel}
-              className="px-4 py-2 border border-zinc-700 hover:bg-zinc-800 rounded-lg text-sm font-medium transition-all"
-            >
-              Cancel
-            </button>
-          )}
+          <div className="flex items-center gap-3">
+             {onCancel && (
+              <button
+                onClick={onCancel}
+                className="px-4 py-2 border border-zinc-700 hover:bg-zinc-800 rounded-lg text-sm font-medium transition-all"
+              >
+                Cancel
+              </button>
+            )}
+            {isPaused ? (
+              onResume && (
+                <button
+                  onClick={onResume}
+                  className="btn btn-primary"
+                >
+                  <Play className="w-4 h-4" /> Resume
+                </button>
+              )
+            ) : (
+              onPause && (
+                <button
+                  onClick={onPause}
+                  className="btn btn-secondary"
+                >
+                  <Pause className="w-4 h-4" /> Pause
+                </button>
+              )
+            )}
+          </div>
         </div>
       </div>
     </div>
@@ -1018,9 +1054,12 @@ export function BookView({
   isMobile = false,
   generationStatus,
   generationStats,
+  onPauseGeneration,
+  onResumeGeneration,
+  isGenerating,
 }: BookViewProps) {
   const [detailTab, setDetailTab] = useState<'overview' | 'analytics' | 'read'>('overview');
-  const [isGenerating, setIsGenerating] = useState(false);
+  const [localIsGenerating, setLocalIsGenerating] = useState(false);
   const [formData, setFormData] = useState<BookSession>({
     goal: '',
     language: 'en',
@@ -1042,7 +1081,7 @@ export function BookView({
       const isGen = ['generating_roadmap', 'generating_content', 'assembling'].includes(
         currentBook.status
       );
-      setIsGenerating(isGen);
+      setLocalIsGenerating(isGen);
       setIsEditing(false);
     }
   }, [currentBook]);
@@ -1055,19 +1094,19 @@ export function BookView({
 
   const handleCreateRoadmap = async () => {
     if (!formData.goal.trim() || !hasApiKey) return;
-    setIsGenerating(true);
+    setLocalIsGenerating(true);
     try {
       await onCreateBookRoadmap(formData);
     } catch (error) {
       console.error('Failed to create roadmap:', error);
     } finally {
-      setIsGenerating(false);
+      setLocalIsGenerating(false);
     }
   };
 
   const handleStartGeneration = async () => {
     if (!currentBook) return;
-    setIsGenerating(true);
+    setLocalIsGenerating(true);
     try {
       await onGenerateAllModules(currentBook, {
         goal: currentBook.goal,
@@ -1083,13 +1122,35 @@ export function BookView({
     } catch (error) {
       console.error('Failed to generate modules:', error);
     } finally {
-      setIsGenerating(false);
+      setLocalIsGenerating(false);
+    }
+  };
+
+  const handlePause = () => {
+    if (currentBook && onPauseGeneration) {
+      onPauseGeneration(currentBook.id);
+    }
+  };
+
+  const handleResume = () => {
+    if (currentBook && onResumeGeneration) {
+      onResumeGeneration(currentBook, {
+        goal: currentBook.goal,
+        language: currentBook.language,
+        targetAudience: formData.targetAudience || currentBook.goal,
+        complexityLevel: formData.complexityLevel || 'intermediate',
+        preferences: formData.preferences || {
+          includeExamples: true,
+          includePracticalExercises: false,
+          includeQuizzes: false,
+        },
+      });
     }
   };
 
   const handleStartAssembly = async () => {
     if (!currentBook) return;
-    setIsGenerating(true);
+    setLocalIsGenerating(true);
     try {
       await onAssembleBook(currentBook, {
         goal: currentBook.goal,
@@ -1105,7 +1166,7 @@ export function BookView({
     } catch (error) {
       console.error('Failed to assemble book:', error);
     } finally {
-      setIsGenerating(false);
+      setLocalIsGenerating(false);
     }
   };
 
@@ -1318,10 +1379,10 @@ export function BookView({
                 <div className="pt-2">
                   <button
                     onClick={handleCreateRoadmap}
-                    disabled={!formData.goal.trim() || !hasApiKey || isGenerating}
+                    disabled={!formData.goal.trim() || !hasApiKey || localIsGenerating}
                     className="btn btn-primary btn-lg w-full disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    {isGenerating ? (
+                    {localIsGenerating ? (
                       <>
                         <Loader2 className="animate-spin" />
                         Generating...
@@ -1349,6 +1410,7 @@ export function BookView({
       currentBook.modules.every((m) => m.status === 'completed');
     const failedModules = currentBook.modules.filter((m) => m.status === 'error');
     const completedModules = currentBook.modules.filter((m) => m.status === 'completed');
+    const isPaused = generationStatus?.status === 'paused';
 
     return (
       <div className="flex-1 flex flex-col h-full">
@@ -1424,7 +1486,7 @@ export function BookView({
               ) : (
                 <div className="space-y-6">
                   {/* Generation Progress Panel */}
-                  {currentBook.status === 'generating_content' &&
+                  {(isGenerating || isPaused) &&
                     generationStatus &&
                     generationStats && (
                       <EmbeddedProgressPanel
@@ -1435,16 +1497,17 @@ export function BookView({
                             window.confirm('Cancel generation? Progress will be saved.')
                           ) {
                             bookService.cancelActiveRequests(currentBook.id);
-                            setIsGenerating(false);
                           }
                         }}
+                        onPause={handlePause}
+                        onResume={handleResume}
                       />
                     )}
 
                   {/* Ready to Generate */}
                   {currentBook.status === 'roadmap_completed' &&
                     !areAllModulesDone &&
-                    currentBook.status !== 'generating_content' && (
+                    !isGenerating && !isPaused && (
                       <div className="bg-[var(--color-card)] border border-[var(--color-border)] rounded-lg p-6">
                         <div className="flex items-center gap-3 mb-4">
                           <div className="w-12 h-12 flex items-center justify-center bg-blue-500/10 rounded-lg">
@@ -1476,10 +1539,10 @@ export function BookView({
                         </div>
                         <button
                           onClick={handleStartGeneration}
-                          disabled={isGenerating}
+                          disabled={localIsGenerating}
                           className="btn btn-primary w-full"
                         >
-                          {isGenerating ? (
+                          {localIsGenerating ? (
                             <>
                               <Loader2 className="animate-spin" />
                               Generating...
@@ -1495,9 +1558,20 @@ export function BookView({
                         </button>
                       </div>
                     )}
+                    
+                  {/* Paused State */}
+                  {isPaused && (
+                    <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-6 text-center">
+                        <h3 className="text-lg font-semibold text-yellow-300 mb-2">Generation Paused</h3>
+                        <p className="text-sm text-yellow-400 mb-4">Your progress is saved. You can resume generation whenever you're ready.</p>
+                        <button onClick={handleResume} className="btn btn-primary">
+                            <Play className="w-4 h-4" /> Resume Generation
+                        </button>
+                    </div>
+                  )}
 
                   {/* All Modules Done */}
-                  {areAllModulesDone && currentBook.status !== 'completed' && !isGenerating && (
+                  {areAllModulesDone && currentBook.status !== 'completed' && !localIsGenerating && (
                     <div className="bg-[var(--color-card)] border border-green-500/30 rounded-lg p-6 space-y-6 animate-fade-in-up">
                       <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-center sm:text-left">
                         <div className="flex items-center gap-4">
@@ -1590,8 +1664,7 @@ export function BookView({
 
                   {/* Learning Roadmap */}
                   {currentBook.roadmap &&
-                    currentBook.status !== 'completed' &&
-                    currentBook.status !== 'generating_content' && (
+                    (currentBook.status !== 'completed' && !isGenerating && !isPaused) && (
                       <div className="bg-[var(--color-card)] border border-[var(--color-border)] rounded-lg p-6">
                         <div className="flex items-center gap-3 mb-6">
                           <ListChecks className="w-5 h-5 text-purple-400" />
