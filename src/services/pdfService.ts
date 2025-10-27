@@ -248,6 +248,9 @@ class PremiumPdfGenerator {
     const lines = markdown.split('\n');
     let paragraphBuffer: string[] = [];
     let isFirstModule = true;
+    let inTable = false;
+    let tableRows: string[][] = [];
+    let tableHeaders: string[] = [];
 
     const flushParagraph = () => {
       if (paragraphBuffer.length > 0) {
@@ -257,17 +260,87 @@ class PremiumPdfGenerator {
       }
     };
 
-    for (const line of lines) {
-      const trimmed = line.trim();
+    const flushTable = () => {
+      if (tableRows.length > 0 && tableHeaders.length > 0) {
+        content.push({
+          table: {
+            headerRows: 1,
+            widths: Array(tableHeaders.length).fill('*'),
+            body: [
+              tableHeaders.map(h => ({ 
+                text: this.cleanText(h), 
+                style: 'tableHeader', 
+                fillColor: '#f7fafc' 
+              })),
+              ...tableRows.map(row => 
+                row.map(cell => ({ 
+                  text: this.cleanText(cell), 
+                  style: 'tableCell' 
+                }))
+              )
+            ]
+          },
+          layout: {
+            hLineWidth: () => 0.5,
+            vLineWidth: () => 0.5,
+            hLineColor: () => '#cbd5e0',
+            vLineColor: () => '#cbd5e0',
+            paddingLeft: () => 8,
+            paddingRight: () => 8,
+            paddingTop: () => 6,
+            paddingBottom: () => 6
+          },
+          margin: [0, 10, 0, 15]
+        });
+        tableRows = [];
+        tableHeaders = [];
+        inTable = false;
+      }
+    };
+
+    for (let i = 0; i < lines.length; i++) {
+      const trimmed = lines[i].trim();
 
       if (!trimmed) {
         flushParagraph();
+        flushTable();
         continue;
       }
 
-      // Check if this is a module heading
+      // Table detection
+      if (trimmed.includes('|') && !inTable) {
+        flushParagraph();
+        const cells = trimmed.split('|').filter(c => c.trim()).map(c => c.trim());
+        
+        // Check if next line is separator
+        const nextLine = lines[i + 1]?.trim() || '';
+        if (nextLine.match(/^\|?[\s\-:]+\|/)) {
+          tableHeaders = cells;
+          inTable = true;
+          i++; // Skip separator line
+          continue;
+        }
+      }
+
+      // Table row
+      if (inTable && trimmed.includes('|')) {
+        const cells = trimmed.split('|').filter(c => c.trim()).map(c => c.trim());
+        if (cells.length === tableHeaders.length) {
+          tableRows.push(cells);
+          continue;
+        } else {
+          flushTable();
+        }
+      }
+
+      // If we were in a table but this line isn't part of it
+      if (inTable && !trimmed.includes('|')) {
+        flushTable();
+      }
+
+      // Check if this is a module heading (# Module X:)
       const isModuleHeading = trimmed.startsWith('# ') && 
-                              this.cleanText(trimmed.substring(2)).toLowerCase().startsWith('module');
+                              /^#\s+module\s+\d+/i.test(trimmed);
 
       if (trimmed.startsWith('# ')) {
         flushParagraph();
@@ -281,6 +354,8 @@ class PremiumPdfGenerator {
           }
           isFirstModule = false;
           
+          content.push({ text, style: 'h1Module' });
+        } else {
           content.push({ text, style: 'h1Module' });
         }
       } else if (trimmed.startsWith('## ')) {
@@ -320,6 +395,7 @@ class PremiumPdfGenerator {
     }
 
     flushParagraph();
+    flushTable();
     return content;
   }
 
