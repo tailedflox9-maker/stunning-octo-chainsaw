@@ -1,4 +1,4 @@
-// src/App.tsx - FIXED PAUSE/RESUME
+// src/App.tsx - COMPLETE FILE WITH RETRY SYSTEM
 import React, { useState, useEffect, useMemo } from 'react';
 import { Analytics } from '@vercel/analytics/react';
 import { Sidebar } from './components/Sidebar';
@@ -7,7 +7,7 @@ import { SettingsModal } from './components/SettingsModal';
 import { useGenerationStats } from './components/GenerationProgressPanel';
 import { APISettings, ModelProvider } from './types';
 import { usePWA } from './hooks/usePWA';
-import { Menu, WifiOff } from 'lucide-react';
+import { Menu, WifiOff, Settings, CheckCircle2 } from 'lucide-react';
 import { storageUtils } from './utils/storage';
 import { bookService } from './services/bookService';
 import { BookView } from './components/BookView';
@@ -25,9 +25,16 @@ interface GenerationStatus {
     generatedText?: string;
   };
   totalProgress: number;
-  status: 'idle' | 'generating' | 'completed' | 'error' | 'paused';
+  status: 'idle' | 'generating' | 'completed' | 'error' | 'paused' | 'waiting_retry';
   logMessage?: string;
   totalWordsGenerated?: number;
+  retryInfo?: {
+    moduleTitle: string;
+    error: string;
+    retryCount: number;
+    maxRetries: number;
+    waitTime?: number;
+  };
 }
 
 function App() {
@@ -50,6 +57,10 @@ function App() {
     totalWordsGenerated: 0,
   });
   const [generationStartTime, setGenerationStartTime] = useState<Date>(new Date());
+  
+  // ✅ NEW: Model switch modal state
+  const [showModelSwitch, setShowModelSwitch] = useState(false);
+  const [modelSwitchOptions, setModelSwitchOptions] = useState<Array<{provider: ModelProvider; model: string; name: string}>>([]);
 
   const { isInstallable, isInstalled, installApp, dismissInstallPrompt } = usePWA();
 
@@ -78,12 +89,11 @@ function App() {
     generationStatus.totalWordsGenerated || totalWordsGenerated
   );
 
-  // ✅ FIX: Check for paused state on mount and when book changes
+  // ✅ Check for paused state on mount
   useEffect(() => {
     if (currentBook && currentBook.status === 'generating_content') {
       const checkpoint = bookService.getCheckpointInfo(currentBook.id);
       if (checkpoint && checkpoint.completed > 0) {
-        // Book has partial progress - check if it was paused
         const isPaused = bookService.isPaused(currentBook.id);
         if (isPaused) {
           setGenerationStatus({
@@ -192,12 +202,108 @@ function App() {
 
   const hasApiKey = !!(settings.googleApiKey || settings.mistralApiKey || settings.zhipuApiKey);
   
+  // ✅ NEW: Get alternative AI models
+  const getAlternativeModels = () => {
+    const alternatives: Array<{provider: ModelProvider; model: string; name: string}> = [];
+    
+    if (settings.googleApiKey && settings.selectedProvider !== 'google') {
+      alternatives.push({
+        provider: 'google',
+        model: 'gemini-2.5-flash',
+        name: 'Google Gemini 2.5 Flash'
+      });
+    }
+    
+    if (settings.mistralApiKey && settings.selectedProvider !== 'mistral') {
+      alternatives.push({
+        provider: 'mistral',
+        model: 'mistral-small-latest',
+        name: 'Mistral Small'
+      });
+    }
+    
+    if (settings.zhipuApiKey && settings.selectedProvider !== 'zhipu') {
+      alternatives.push({
+        provider: 'zhipu',
+        model: 'glm-4.5-flash',
+        name: 'GLM 4.5 Flash'
+      });
+    }
+    
+    return alternatives;
+  };
+
+  // ✅ NEW: Show model switch modal
+  const showModelSwitchModal = (alternatives: Array<{provider: ModelProvider; model: string; name: string}>) => {
+    setModelSwitchOptions(alternatives);
+    setShowModelSwitch(true);
+  };
+
+  // ✅ NEW: Handle model switch
+  const handleModelSwitch = async (provider: ModelProvider, model: string) => {
+    const newSettings = { ...settings, selectedProvider: provider, selectedModel: model };
+    setSettings(newSettings);
+    storageUtils.saveSettings(newSettings);
+    
+    setShowModelSwitch(false);
+    
+    setTimeout(() => {
+      if (currentBook) {
+        const modelName = modelSwitchOptions.find(m => m.provider === provider)?.name;
+        alert(`✅ Switched to ${modelName}\n\nClick Resume to continue generation with the new model.`);
+        
+        setGenerationStatus(prev => ({
+          ...prev,
+          status: 'paused',
+          logMessage: '⚙️ Model switched - Ready to resume'
+        }));
+      }
+    }, 100);
+  };
+
+  // ✅ NEW: Handle retry decision from user
+  const handleRetryDecision = async (decision: 'retry' | 'switch' | 'skip') => {
+    if (!currentBook) return;
+    
+    if (decision === 'retry') {
+      // User wants to retry with same model
+      bookService.setRetryDecision(currentBook.id, 'retry');
+      
+    } else if (decision === 'switch') {
+      // User wants to switch model
+      bookService.setRetryDecision(currentBook.id, 'switch');
+      
+      const alternatives = getAlternativeModels();
+      
+      if (alternatives.length === 0) {
+        alert('No alternative AI models available.\n\nPlease configure additional API keys in Settings.');
+        setSettingsOpen(true);
+        return;
+      }
+      
+      showModelSwitchModal(alternatives);
+      
+    } else if (decision === 'skip') {
+      // User wants to skip this module
+      const confirmed = window.confirm(
+        '⚠️ Skip this module?\n\n' +
+        '• The module will be marked as failed\n' +
+        '• You can retry it later from the error summary\n' +
+        '• Generation will continue with the next module\n\n' +
+        'Are you sure?'
+      );
+      
+      if (confirmed) {
+        bookService.setRetryDecision(currentBook.id, 'skip');
+      }
+    }
+  };
+
   const handleSelectBook = (id: string | null) => {
     setCurrentBookId(id);
     if (id) {
       setView('detail');
       
-      // ✅ FIX: Check for paused state when selecting book
       const book = books.find(b => b.id === id);
       if (book && book.status === 'generating_content') {
         const checkpoint = bookService.getCheckpointInfo(id);
@@ -267,7 +373,6 @@ function App() {
       return;
     }
 
-    // ✅ FIX: Check for checkpoint with better messaging
     const hasCheckpoint = bookService.hasCheckpoint(book.id);
     const checkpointInfo = bookService.getCheckpointInfo(book.id);
 
@@ -283,21 +388,18 @@ function App() {
       const shouldResume = window.confirm(message);
       
       if (!shouldResume) {
-        // Clear checkpoint and reset
         localStorage.removeItem(`checkpoint_${book.id}`);
         localStorage.removeItem(`pause_flag_${book.id}`);
-        bookService.resumeGeneration(book.id); // Clear any pause flags
+        bookService.resumeGeneration(book.id);
         handleBookProgressUpdate(book.id, { 
           modules: [],
           status: 'generating_content',
           progress: 15
         });
       } else {
-        // Resume from checkpoint - clear pause flag
         bookService.resumeGeneration(book.id);
       }
     } else {
-      // No checkpoint - start fresh
       bookService.resumeGeneration(book.id);
     }
 
@@ -315,7 +417,6 @@ function App() {
     try {
       await bookService.generateAllModulesWithRecovery(book, session);
       
-      // ✅ FIX: Only mark as completed if not paused
       if (!bookService.isPaused(book.id)) {
         setGenerationStatus(prev => ({
           ...prev,
@@ -328,7 +429,6 @@ function App() {
       console.error("Module generation failed:", error);
       const errorMessage = error instanceof Error ? error.message : 'Generation failed';
       
-      // ✅ FIX: Don't mark as error if paused
       if (!bookService.isPaused(book.id)) {
         setGenerationStatus(prev => ({
           ...prev,
@@ -346,11 +446,8 @@ function App() {
 
   const handlePauseGeneration = (bookId: string) => {
     console.log('🔴 Pausing generation for book:', bookId);
-    
-    // Set pause flag in service
     bookService.pauseGeneration(bookId);
     
-    // Update UI immediately
     setGenerationStatus(prev => ({
       ...prev,
       status: 'paused',
@@ -360,11 +457,8 @@ function App() {
 
   const handleResumeGeneration = async (book: BookProject, session: BookSession) => {
     console.log('▶ Resuming generation for book:', book.id);
-    
-    // Clear pause flag
     bookService.resumeGeneration(book.id);
     
-    // Reset generation state
     setGenerationStartTime(new Date());
     
     const initialWords = book.modules.reduce((sum, m) => 
@@ -624,6 +718,8 @@ function App() {
           onPauseGeneration={handlePauseGeneration}
           onResumeGeneration={handleResumeGeneration}
           isGenerating={isGenerating}
+          onRetryDecision={handleRetryDecision}
+          availableModels={getAlternativeModels()}
         />
       </div>
 
@@ -633,6 +729,67 @@ function App() {
         settings={settings} 
         onSaveSettings={handleSaveSettings}
       />
+
+      {/* ✅ NEW: Model Switch Modal */}
+      {showModelSwitch && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="bg-[var(--color-sidebar)] border border-[var(--color-border)] rounded-2xl shadow-2xl w-full max-w-md p-6 animate-fade-in-up">
+            <div className="flex items-center gap-3 mb-6">
+              <Settings className="w-6 h-6 text-blue-400" />
+              <h3 className="text-xl font-semibold text-white">Switch AI Model</h3>
+            </div>
+            
+            <p className="text-sm text-gray-400 mb-6">
+              Select a different AI model to continue generation:
+            </p>
+            
+            <div className="space-y-3 mb-6">
+              {modelSwitchOptions.map((option) => (
+                <button
+                  key={`${option.provider}-${option.model}`}
+                  onClick={() => handleModelSwitch(option.provider, option.model)}
+                  className="w-full p-4 bg-[var(--color-bg)] border border-[var(--color-border)] rounded-lg hover:border-blue-500 transition-all text-left group"
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="font-semibold text-white group-hover:text-blue-400 transition-colors">
+                        {option.name}
+                      </div>
+                      <div className="text-xs text-gray-500 mt-1">
+                        Model: {option.model}
+                      </div>
+                    </div>
+                    <CheckCircle2 className="w-5 h-5 text-gray-600 group-hover:text-blue-400 transition-colors" />
+                  </div>
+                </button>
+              ))}
+            </div>
+            
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowModelSwitch(false)}
+                className="flex-1 btn btn-secondary"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  setShowModelSwitch(false);
+                  setSettingsOpen(true);
+                }}
+                className="flex-1 btn btn-primary"
+              >
+                <Settings className="w-4 h-4" />
+                Configure Keys
+              </button>
+            </div>
+            
+            <div className="mt-4 text-xs text-zinc-500 text-center">
+              💡 You can add more AI providers in Settings
+            </div>
+          </div>
+        </div>
+      )}
 
       {isInstallable && !isInstalled && (
         <InstallPrompt 
