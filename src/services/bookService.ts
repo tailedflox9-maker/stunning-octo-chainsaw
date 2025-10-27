@@ -1,4 +1,4 @@
-// src/services/bookService.ts - COMPLETE FILE WITH FIXED CHECKPOINT RECOVERY
+// src/services/bookService.ts - COMPLETE FIXED VERSION
 import { BookProject, BookRoadmap, BookModule, RoadmapModule, BookSession } from '../types/book';
 import { APISettings, ModelProvider } from '../types';
 import { generateId } from '../utils/helpers';
@@ -11,7 +11,8 @@ interface GenerationCheckpoint {
   failedModuleIds: string[];
   moduleRetryCount: Record<string, number>;
   lastSuccessfulIndex: number;
-  timestamp: Date;
+  timestamp: string;
+  totalWordsGenerated: number;
 }
 
 export interface GenerationStatus {
@@ -23,7 +24,7 @@ export interface GenerationStatus {
     generatedText?: string;
   };
   totalProgress: number;
-  status: 'idle' | 'generating' | 'completed' | 'error';
+  status: 'idle' | 'generating' | 'completed' | 'error' | 'paused';
   logMessage?: string;
   totalWordsGenerated?: number;
   aiStage?: 'analyzing' | 'writing' | 'examples' | 'polishing' | 'complete';
@@ -44,6 +45,7 @@ class BookGenerationService {
   private activeRequests = new Map<string, AbortController>();
   private checkpoints = new Map<string, GenerationCheckpoint>();
   private currentGeneratedTexts = new Map<string, string>();
+  private pauseFlags = new Map<string, boolean>();
   
   private readonly MAX_MODULE_RETRIES = 5;
   private readonly RETRY_DELAY_BASE = 3000;
@@ -82,15 +84,13 @@ class BookGenerationService {
     this.currentGeneratedTexts.delete(bookId);
   }
 
-  // ============================================================================
-  // FIXED CHECKPOINT METHODS
-  // ============================================================================
   private saveCheckpoint(
     bookId: string, 
     completedModuleIds: string[], 
     failedModuleIds: string[], 
     lastIndex: number,
-    moduleRetryCount: Record<string, number> = {}
+    moduleRetryCount: Record<string, number> = {},
+    totalWordsGenerated: number = 0
   ) {
     const checkpoint: GenerationCheckpoint = {
       bookId,
@@ -98,21 +98,17 @@ class BookGenerationService {
       failedModuleIds,
       moduleRetryCount,
       lastSuccessfulIndex: lastIndex,
-      timestamp: new Date()
+      timestamp: new Date().toISOString(),
+      totalWordsGenerated
     };
     
     this.checkpoints.set(bookId, checkpoint);
     
     try {
-      // CRITICAL FIX: Convert Date to string before saving
-      const checkpointToSave = {
-        ...checkpoint,
-        timestamp: checkpoint.timestamp.toISOString()
-      };
-      
-      localStorage.setItem(`checkpoint_${bookId}`, JSON.stringify(checkpointToSave));
+      localStorage.setItem(`checkpoint_${bookId}`, JSON.stringify(checkpoint));
+      console.log(`✓ Checkpoint saved: ${completedModuleIds.length} completed, ${failedModuleIds.length} failed`);
     } catch (error) {
-      console.warn('Failed to save checkpoint', error);
+      console.warn('Failed to save checkpoint to localStorage:', error);
     }
   }
 
@@ -124,21 +120,19 @@ class BookGenerationService {
     try {
       const stored = localStorage.getItem(`checkpoint_${bookId}`);
       if (stored) {
-        const parsed = JSON.parse(stored);
+        const checkpoint: GenerationCheckpoint = JSON.parse(stored);
         
-        // CRITICAL FIX: Convert timestamp string back to Date
-        const checkpoint: GenerationCheckpoint = {
-          ...parsed,
-          timestamp: new Date(parsed.timestamp),
-          moduleRetryCount: parsed.moduleRetryCount || {}
-        };
+        if (!checkpoint.completedModuleIds || !Array.isArray(checkpoint.completedModuleIds)) {
+          console.warn('Invalid checkpoint structure, ignoring');
+          return null;
+        }
         
         this.checkpoints.set(bookId, checkpoint);
-        
+        console.log(`✓ Checkpoint loaded: ${checkpoint.completedModuleIds.length} completed`);
         return checkpoint;
       }
     } catch (error) {
-      console.warn('Failed to load checkpoint', error);
+      console.warn('Failed to load checkpoint from localStorage:', error);
     }
     
     return null;
@@ -148,12 +142,31 @@ class BookGenerationService {
     this.checkpoints.delete(bookId);
     try {
       localStorage.removeItem(`checkpoint_${bookId}`);
+      console.log('✓ Checkpoint cleared');
     } catch (error) {
-      console.warn('Failed to clear checkpoint', error);
+      console.warn('Failed to clear checkpoint:', error);
     }
   }
 
-  // VALIDATION METHODS
+  pauseGeneration(bookId: string) {
+    this.pauseFlags.set(bookId, true);
+    this.updateGenerationStatus(bookId, {
+      status: 'paused',
+      totalProgress: 0,
+      logMessage: '⏸ Generation paused by user'
+    });
+    console.log('⏸ Generation paused for book:', bookId);
+  }
+
+  resumeGeneration(bookId: string) {
+    this.pauseFlags.delete(bookId);
+    console.log('▶ Generation resumed for book:', bookId);
+  }
+
+  isPaused(bookId: string): boolean {
+    return this.pauseFlags.get(bookId) || false;
+  }
+
   validateSettings(): { isValid: boolean; errors: string[] } {
     const errors: string[] = [];
     if (!this.settings.selectedProvider) errors.push('No AI provider selected');
@@ -180,7 +193,6 @@ class BookGenerationService {
     return key;
   }
 
-  // ERROR HANDLING METHODS
   private isRateLimitError(error: any): boolean {
     const errorMessage = error?.message?.toLowerCase() || '';
     const statusCode = error?.status || error?.response?.status;
@@ -227,7 +239,6 @@ class BookGenerationService {
     return Math.min(exponentialDelay + jitter, this.MAX_RETRY_DELAY);
   }
 
-  // AI GENERATION CORE
   private async generateWithAI(prompt: string, bookId?: string, onChunk?: (chunk: string) => void): Promise<string> {
     const validation = this.validateSettings();
     if (!validation.isValid) {
@@ -269,9 +280,6 @@ class BookGenerationService {
     }
   }
 
-  // ============================================================================
-  // GOOGLE GEMINI STREAMING
-  // ============================================================================
   private async generateWithGoogle(prompt: string, signal?: AbortSignal, onChunk?: (chunk: string) => void): Promise<string> {
     const apiKey = this.getApiKey();
     const model = this.settings.selectedModel;
@@ -287,12 +295,7 @@ class BookGenerationService {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: { 
-              temperature: 0.7, 
-              topK: 40, 
-              topP: 0.95, 
-              maxOutputTokens: 8192 
-            }
+            generationConfig: { temperature: 0.7, topK: 40, topP: 0.95, maxOutputTokens: 8192 }
           }),
           signal
         });
@@ -309,9 +312,7 @@ class BookGenerationService {
           throw new Error(errorData?.error?.message || `HTTP ${response.status}`);
         }
 
-        if (!response.body) {
-          throw new Error('Response body is null');
-        }
+        if (!response.body) throw new Error('Response body is null');
 
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
@@ -320,7 +321,6 @@ class BookGenerationService {
 
         while (true) {
           const { done, value } = await reader.read();
-          
           if (done) break;
 
           buffer += decoder.decode(value, { stream: true });
@@ -329,37 +329,27 @@ class BookGenerationService {
 
           for (const line of lines) {
             const trimmedLine = line.trim();
-            
             if (trimmedLine.startsWith('data: ')) {
               const jsonStr = trimmedLine.substring(6);
-              
               if (jsonStr === '[DONE]') continue;
 
               try {
                 const data = JSON.parse(jsonStr);
                 const textPart = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
-                
                 if (textPart) {
                   fullContent += textPart;
                   if (onChunk) onChunk(textPart);
                 }
-              } catch (parseError) {
-                // Ignore parse errors
-              }
+              } catch (parseError) {}
             }
           }
         }
 
-        if (!fullContent) {
-          throw new Error('No content generated');
-        }
-        
+        if (!fullContent) throw new Error('No content generated');
         return fullContent;
 
       } catch (error) {
-        if (error instanceof Error && error.name === 'AbortError') {
-          throw error;
-        }
+        if (error instanceof Error && error.name === 'AbortError') throw error;
         attempt++;
         if (attempt >= maxRetries) throw error;
         await sleep(Math.pow(2, attempt) * 1000);
@@ -368,9 +358,6 @@ class BookGenerationService {
     throw new Error('Google API failed after retries');
   }
 
-  // ============================================================================
-  // MISTRAL AI STREAMING
-  // ============================================================================
   private async generateWithMistral(prompt: string, signal?: AbortSignal, onChunk?: (chunk: string) => void): Promise<string> {
     const apiKey = this.getApiKey();
     const model = this.settings.selectedModel;
@@ -381,10 +368,7 @@ class BookGenerationService {
       try {
         const response = await fetch('https://api.mistral.ai/v1/chat/completions', {
           method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json', 
-            'Authorization': `Bearer ${apiKey}` 
-          },
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
           body: JSON.stringify({
             model: model,
             messages: [{ role: 'user', content: prompt }],
@@ -407,9 +391,7 @@ class BookGenerationService {
           throw new Error(errorData?.error?.message || `Mistral API Error: ${response.status}`);
         }
 
-        if (!response.body) {
-          throw new Error('Response body is null');
-        }
+        if (!response.body) throw new Error('Response body is null');
 
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
@@ -418,7 +400,6 @@ class BookGenerationService {
 
         while (true) {
           const { done, value } = await reader.read();
-          
           if (done) break;
 
           buffer += decoder.decode(value, { stream: true });
@@ -427,37 +408,27 @@ class BookGenerationService {
 
           for (const line of lines) {
             const trimmedLine = line.trim();
-            
             if (trimmedLine.startsWith('data: ')) {
               const jsonStr = trimmedLine.substring(6);
-              
               if (jsonStr === '[DONE]') continue;
 
               try {
                 const data = JSON.parse(jsonStr);
                 const textPart = data?.choices?.[0]?.delta?.content || '';
-                
                 if (textPart) {
                   fullContent += textPart;
                   if (onChunk) onChunk(textPart);
                 }
-              } catch (parseError) {
-                // Ignore parse errors
-              }
+              } catch (parseError) {}
             }
           }
         }
 
-        if (!fullContent) {
-          throw new Error('No content generated');
-        }
-        
+        if (!fullContent) throw new Error('No content generated');
         return fullContent;
 
       } catch (error) {
-        if (error instanceof Error && error.name === 'AbortError') {
-          throw error;
-        }
+        if (error instanceof Error && error.name === 'AbortError') throw error;
         attempt++;
         if (attempt >= maxRetries) throw error;
         await sleep(Math.pow(2, attempt) * 1000);
@@ -466,9 +437,6 @@ class BookGenerationService {
     throw new Error('Mistral API failed after retries');
   }
 
-  // ============================================================================
-  // ZHIPU AI STREAMING
-  // ============================================================================
   private async generateWithZhipu(prompt: string, signal?: AbortSignal, onChunk?: (chunk: string) => void): Promise<string> {
     const apiKey = this.getApiKey();
     const model = this.settings.selectedModel;
@@ -479,10 +447,7 @@ class BookGenerationService {
       try {
         const response = await fetch('https://open.bigmodel.cn/api/paas/v4/chat/completions', {
           method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json', 
-            'Authorization': `Bearer ${apiKey}` 
-          },
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
           body: JSON.stringify({
             model: model,
             messages: [{ role: 'user', content: prompt }],
@@ -505,9 +470,7 @@ class BookGenerationService {
           throw new Error(errorData?.error?.message || `ZhipuAI API Error: ${response.status}`);
         }
 
-        if (!response.body) {
-          throw new Error('Response body is null');
-        }
+        if (!response.body) throw new Error('Response body is null');
 
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
@@ -516,7 +479,6 @@ class BookGenerationService {
 
         while (true) {
           const { done, value } = await reader.read();
-          
           if (done) break;
 
           buffer += decoder.decode(value, { stream: true });
@@ -525,37 +487,27 @@ class BookGenerationService {
 
           for (const line of lines) {
             const trimmedLine = line.trim();
-            
             if (trimmedLine.startsWith('data: ')) {
               const jsonStr = trimmedLine.substring(6);
-              
               if (jsonStr === '[DONE]') continue;
 
               try {
                 const data = JSON.parse(jsonStr);
                 const textPart = data?.choices?.[0]?.delta?.content || '';
-                
                 if (textPart) {
                   fullContent += textPart;
                   if (onChunk) onChunk(textPart);
                 }
-              } catch (parseError) {
-                // Ignore parse errors
-              }
+              } catch (parseError) {}
             }
           }
         }
 
-        if (!fullContent) {
-          throw new Error('No content generated');
-        }
-        
+        if (!fullContent) throw new Error('No content generated');
         return fullContent;
 
       } catch (error) {
-        if (error instanceof Error && error.name === 'AbortError') {
-          throw error;
-        }
+        if (error instanceof Error && error.name === 'AbortError') throw error;
         attempt++;
         if (attempt >= maxRetries) throw error;
         await sleep(Math.pow(2, attempt) * 1000);
@@ -564,7 +516,6 @@ class BookGenerationService {
     throw new Error('ZhipuAI API failed after retries');
   }
 
-  // ROADMAP GENERATION
   async generateRoadmap(session: BookSession, bookId: string): Promise<BookRoadmap> {
     this.updateProgress(bookId, { status: 'generating_roadmap', progress: 5 });
 
@@ -648,13 +599,16 @@ Return ONLY valid JSON:
     return roadmap;
   }
 
-  // MODULE GENERATION
   async generateModuleContentWithRetry(
     book: BookProject,
     roadmapModule: RoadmapModule,
     session: BookSession,
     attemptNumber: number = 1
   ): Promise<BookModule> {
+    if (this.isPaused(book.id)) {
+      throw new Error('GENERATION_PAUSED');
+    }
+
     const totalWordsBefore = book.modules.reduce((sum, m) => sum + (m.status === 'completed' ? m.wordCount : 0), 0);
     this.currentGeneratedTexts.set(book.id, '');
 
@@ -682,6 +636,14 @@ Return ONLY valid JSON:
       const prompt = this.buildModulePrompt(session, roadmapModule, previousModules, isFirstModule, moduleIndex, totalModules);
       
       const moduleContent = await this.generateWithAI(prompt, book.id, (chunk) => {
+        if (this.isPaused(book.id)) {
+          const controller = this.activeRequests.get(book.id);
+          if (controller) {
+            controller.abort();
+          }
+          return;
+        }
+
         const currentText = (this.currentGeneratedTexts.get(book.id) || '') + chunk;
         this.currentGeneratedTexts.set(book.id, currentText);
         
@@ -743,6 +705,10 @@ Return ONLY valid JSON:
 
       return module;
     } catch (error) {
+      if (error instanceof Error && error.message === 'GENERATION_PAUSED') {
+        throw error;
+      }
+
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       
       if (this.shouldRetry(error, attemptNumber)) {
@@ -810,30 +776,32 @@ ${session.preferences?.includePracticalExercises ? '### Practice Exercises' : ''
 ### Key Takeaways`;
   }
 
-  // ============================================================================
-  // FIXED BULK GENERATION WITH CHECKPOINT RECOVERY
-  // ============================================================================
   async generateAllModulesWithRecovery(book: BookProject, session: BookSession): Promise<void> {
     if (!book.roadmap) {
       throw new Error('No roadmap available');
     }
     
-    // CRITICAL: Load checkpoint first
+    this.pauseFlags.delete(book.id);
+    
     const checkpoint = this.loadCheckpoint(book.id);
     
     let completedModules = [...book.modules.filter(m => m.status === 'completed')];
     const completedModuleIds = new Set<string>();
     const failedModuleIds = new Set<string>();
+    const moduleRetryCount: Record<string, number> = {};
 
     if (checkpoint) {
       checkpoint.completedModuleIds.forEach(id => completedModuleIds.add(id));
       checkpoint.failedModuleIds.forEach(id => failedModuleIds.add(id));
+      Object.assign(moduleRetryCount, checkpoint.moduleRetryCount || {});
 
       completedModules.forEach(m => {
         if (m.roadmapModuleId) {
           completedModuleIds.add(m.roadmapModuleId);
         }
       });
+      
+      console.log(`✓ Resuming from checkpoint: ${completedModuleIds.size} completed, ${failedModuleIds.size} failed`);
     } else {
       completedModules.forEach(m => {
         if (m.roadmapModuleId) {
@@ -857,31 +825,62 @@ ${session.preferences?.includePracticalExercises ? '### Practice Exercises' : ''
 
     this.updateProgress(book.id, { status: 'generating_content', progress: 15 });
 
-    const batchStartTime = Date.now();
-
     for (let i = 0; i < modulesToGenerate.length; i++) {
       const roadmapModule = modulesToGenerate[i];
+      
+      if (this.isPaused(book.id)) {
+        console.log('⏸ Generation paused, saving checkpoint...');
+        const totalWords = completedModules.reduce((sum, m) => 
+          sum + (m.status === 'completed' ? m.wordCount : 0), 0
+        );
+        
+        this.saveCheckpoint(
+          book.id,
+          Array.from(completedModuleIds),
+          Array.from(failedModuleIds),
+          i - 1,
+          moduleRetryCount,
+          totalWords
+        );
+        
+        this.updateProgress(book.id, {
+          status: 'roadmap_completed',
+          modules: [...completedModules],
+          progress: 15 + ((completedModules.length / book.roadmap.modules.length) * 70)
+        });
+        
+        return;
+      }
       
       this.clearCurrentGeneratedText(book.id);
 
       try {
+        const retryCount = moduleRetryCount[roadmapModule.id] || 0;
+        
         const newModule = await this.generateModuleContentWithRetry(
           { ...book, modules: completedModules },
           roadmapModule,
-          session
+          session,
+          retryCount + 1
         );
 
         if (newModule.status === 'completed') {
           completedModules.push(newModule);
           completedModuleIds.add(roadmapModule.id);
           failedModuleIds.delete(roadmapModule.id);
+          delete moduleRetryCount[roadmapModule.id];
           
-          // Save checkpoint immediately
+          const totalWords = completedModules.reduce((sum, m) => 
+            sum + (m.status === 'completed' ? m.wordCount : 0), 0
+          );
+          
           this.saveCheckpoint(
             book.id,
             Array.from(completedModuleIds),
             Array.from(failedModuleIds),
-            i
+            i,
+            moduleRetryCount,
+            totalWords
           );
 
           const progress = 15 + ((completedModules.length / book.roadmap.modules.length) * 70);
@@ -893,12 +892,19 @@ ${session.preferences?.includePracticalExercises ? '### Practice Exercises' : ''
 
         } else {
           failedModuleIds.add(roadmapModule.id);
+          moduleRetryCount[roadmapModule.id] = (moduleRetryCount[roadmapModule.id] || 0) + 1;
+          
+          const totalWords = completedModules.reduce((sum, m) => 
+            sum + (m.status === 'completed' ? m.wordCount : 0), 0
+          );
           
           this.saveCheckpoint(
             book.id,
             Array.from(completedModuleIds),
             Array.from(failedModuleIds),
-            i
+            i,
+            moduleRetryCount,
+            totalWords
           );
 
           completedModules.push(newModule);
@@ -910,14 +916,45 @@ ${session.preferences?.includePracticalExercises ? '### Practice Exercises' : ''
         }
 
       } catch (error) {
+        if (error instanceof Error && error.message === 'GENERATION_PAUSED') {
+          console.log('⏸ Generation paused during module generation');
+          const totalWords = completedModules.reduce((sum, m) => 
+            sum + (m.status === 'completed' ? m.wordCount : 0), 0
+          );
+          
+          this.saveCheckpoint(
+            book.id,
+            Array.from(completedModuleIds),
+            Array.from(failedModuleIds),
+            i - 1,
+            moduleRetryCount,
+            totalWords
+          );
+          
+          this.updateProgress(book.id, {
+            status: 'roadmap_completed',
+            modules: [...completedModules]
+          });
+          
+          return;
+        }
+
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         
         failedModuleIds.add(roadmapModule.id);
+        moduleRetryCount[roadmapModule.id] = (moduleRetryCount[roadmapModule.id] || 0) + 1;
+        
+        const totalWords = completedModules.reduce((sum, m) => 
+          sum + (m.status === 'completed' ? m.wordCount : 0), 0
+        );
+        
         this.saveCheckpoint(
           book.id,
           Array.from(completedModuleIds),
           Array.from(failedModuleIds),
-          i
+          i,
+          moduleRetryCount,
+          totalWords
         );
 
         completedModules.push({
@@ -935,12 +972,10 @@ ${session.preferences?.includePracticalExercises ? '### Practice Exercises' : ''
       }
     }
 
-    const batchDuration = Date.now() - batchStartTime;
     const hasFailures = completedModules.some(m => m.status === 'error');
 
     if (hasFailures) {
       const failedCount = completedModules.filter(m => m.status === 'error').length;
-      const successCount = completedModules.filter(m => m.status === 'completed').length;
       
       this.updateProgress(book.id, {
         status: 'error',
@@ -957,7 +992,6 @@ ${session.preferences?.includePracticalExercises ? '### Practice Exercises' : ''
     }
   }
 
-  // RETRY FAILED MODULES
   async retryFailedModules(book: BookProject, session: BookSession): Promise<void> {
     if (!book.roadmap) {
       throw new Error('No roadmap available');
@@ -969,10 +1003,22 @@ ${session.preferences?.includePracticalExercises ? '### Practice Exercises' : ''
       return;
     }
 
+    this.pauseFlags.delete(book.id);
+
     const completedModules = book.modules.filter(m => m.status === 'completed');
     const updatedModules = [...completedModules];
 
     for (const failedModule of failedModules) {
+      if (this.isPaused(book.id)) {
+        console.log('⏸ Retry paused');
+        this.updateProgress(book.id, { 
+          modules: [...updatedModules],
+          status: 'error',
+          error: `Retry paused with ${failedModules.length - updatedModules.filter(m => m.status === 'completed').length} remaining`
+        });
+        return;
+      }
+
       const roadmapModule = book.roadmap.modules.find(
         rm => rm.id === failedModule.roadmapModuleId
       );
@@ -991,7 +1037,13 @@ ${session.preferences?.includePracticalExercises ? '### Practice Exercises' : ''
         await sleep(1000);
 
       } catch (error) {
-        // Continue with next module
+        if (error instanceof Error && error.message === 'GENERATION_PAUSED') {
+          this.updateProgress(book.id, { 
+            modules: [...updatedModules],
+            status: 'error'
+          });
+          return;
+        }
       }
     }
 
@@ -1013,7 +1065,6 @@ ${session.preferences?.includePracticalExercises ? '### Practice Exercises' : ''
     }
   }
 
-  // ASSEMBLE FINAL BOOK
   async assembleFinalBook(book: BookProject, session: BookSession): Promise<void> {
     this.updateProgress(book.id, { status: 'assembling', progress: 90 });
 
@@ -1142,9 +1193,12 @@ Format:
   }
 
   cancelActiveRequests(bookId?: string): void {
-    if (bookId && this.activeRequests.has(bookId)) {
-      this.activeRequests.get(bookId)?.abort();
-      this.activeRequests.delete(bookId);
+    if (bookId) {
+      if (this.activeRequests.has(bookId)) {
+        this.activeRequests.get(bookId)?.abort();
+        this.activeRequests.delete(bookId);
+      }
+      this.pauseGeneration(bookId);
     } else {
       this.activeRequests.forEach(controller => controller.abort());
       this.activeRequests.clear();
@@ -1155,14 +1209,15 @@ Format:
     return this.checkpoints.has(bookId) || localStorage.getItem(`checkpoint_${bookId}`) !== null;
   }
 
-  getCheckpointInfo(bookId: string): { completed: number; failed: number; total: number } | null {
+  getCheckpointInfo(bookId: string): { completed: number; failed: number; total: number; lastSaved: string } | null {
     const checkpoint = this.loadCheckpoint(bookId);
     if (!checkpoint) return null;
     
     return {
       completed: checkpoint.completedModuleIds.length,
       failed: checkpoint.failedModuleIds.length,
-      total: checkpoint.completedModuleIds.length + checkpoint.failedModuleIds.length
+      total: checkpoint.completedModuleIds.length + checkpoint.failedModuleIds.length,
+      lastSaved: new Date(checkpoint.timestamp).toLocaleString()
     };
   }
 }
