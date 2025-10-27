@@ -42,12 +42,11 @@ export const pdfService = {
       const container = document.createElement('div');
       container.style.position = 'fixed';
       container.style.left = '-9999px';
-      container.style.width = '800px'; // A fixed width is crucial for consistent rendering
+      container.style.width = '800px';
       container.style.background = 'white';
       container.style.color = '#1a1a1a';
-      container.style.padding = '20px'; // Internal padding
+      container.style.padding = '20px';
       
-      // Convert Markdown to HTML and apply styling
       const htmlContent = await marked.parse(project.finalBook);
       container.innerHTML = `
         <style>
@@ -73,41 +72,43 @@ export const pdfService = {
       const contentWidth = pageWidth - (margin * 2);
       const contentHeight = pageHeight - (margin * 2);
 
-      // Calculate the pixel equivalent of the PDF content height. This is key for slicing.
       const pageHeightInPixels = (container.clientWidth / contentWidth) * contentHeight;
       const totalContentHeight = container.scrollHeight;
       const totalPages = Math.ceil(totalContentHeight / pageHeightInPixels);
 
       onProgress(30);
 
-      // 3. Loop through each page, capture only its slice, and add to PDF
+      // 3. Loop through each page, capture its slice, and add directly to PDF
       for (let i = 0; i < totalPages; i++) {
         const canvas = await html2canvas(container, {
           scale: 2,
           useCORS: true,
           logging: false,
           width: container.clientWidth,
-          height: pageHeightInPixels, // Capture only one page height
-          y: i * pageHeightInPixels, // The vertical offset for the slice
+          height: pageHeightInPixels,
+          y: i * pageHeightInPixels,
         });
 
-        const imgData = canvas.toDataURL('image/png');
-        
         if (i > 0) {
           doc.addPage();
         }
         
-        doc.addImage(imgData, 'PNG', margin, margin, contentWidth, contentHeight);
+        // =========================================================================
+        //  THE KEY CHANGE IS HERE: We pass the `canvas` object directly.
+        //  We DO NOT use `canvas.toDataURL()` anymore.
+        //  This is far more memory-efficient and avoids the string length error.
+        // =========================================================================
+        doc.addImage(canvas, 'PNG', margin, margin, contentWidth, contentHeight, undefined, 'FAST');
+        
         addBrandingFooter(doc, i + 1, totalPages);
 
-        // Update progress in a meaningful way
         const progress = Math.min(95, 30 + Math.round(((i + 1) / totalPages) * 65));
         onProgress(progress);
       }
 
-      document.body.removeChild(container); // Clean up the temporary element
+      document.body.removeChild(container);
 
-      // 4. Save the generated PDF
+      // 4. Save the PDF
       const safeTitle = project.title.replace(/[^a-z0-9\s-]/gi, '').replace(/\s+/g, '_').toLowerCase();
       doc.save(`${safeTitle}_by_pustakam.pdf`);
 
@@ -116,7 +117,7 @@ export const pdfService = {
     } catch (error) {
       console.error('Failed to generate PDF:', error);
       alert('An error occurred while generating the PDF. Please check the console for details.');
-      onProgress(0); // Reset progress on error
+      onProgress(0);
     } finally {
       isGenerating = false;
     }
