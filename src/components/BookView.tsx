@@ -1,4 +1,4 @@
-// src/components/BookView.tsx - COMPLETE FIXED VERSION
+// src/components/BookView.tsx - COMPLETE FILE WITH RETRY SYSTEM
 import React, { useEffect, ReactNode, useMemo, useState, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -51,6 +51,7 @@ import {
   Search,
   CheckCircle2,
   Pause,
+  AlertTriangle,
 } from 'lucide-react';
 import { BookProject, BookSession } from '../types/book';
 import { bookService } from '../services/bookService';
@@ -73,10 +74,17 @@ interface GenerationStatus {
     generatedText?: string;
   };
   totalProgress: number;
-  status: 'idle' | 'generating' | 'completed' | 'error' | 'paused';
+  status: 'idle' | 'generating' | 'completed' | 'error' | 'paused' | 'waiting_retry';
   logMessage?: string;
   totalWordsGenerated?: number;
   aiStage?: 'analyzing' | 'writing' | 'examples' | 'polishing' | 'complete';
+  retryInfo?: {
+    moduleTitle: string;
+    error: string;
+    retryCount: number;
+    maxRetries: number;
+    waitTime?: number;
+  };
 }
 
 interface GenerationStats {
@@ -111,6 +119,8 @@ interface BookViewProps {
   onPauseGeneration?: (bookId: string) => void;
   onResumeGeneration?: (book: BookProject, session: BookSession) => void;
   isGenerating?: boolean;
+  onRetryDecision?: (decision: 'retry' | 'switch' | 'skip') => void;
+  availableModels?: Array<{provider: string; model: string; name: string}>;
 }
 
 interface ReadingModeProps {
@@ -237,24 +247,189 @@ const PixelAnimation = () => {
   );
 };
 
+// ✅ NEW: Retry Decision Panel Component
+const RetryDecisionPanel = ({
+  retryInfo,
+  onRetry,
+  onSwitchModel,
+  onSkip,
+  availableModels,
+}: {
+  retryInfo: {
+    moduleTitle: string;
+    error: string;
+    retryCount: number;
+    maxRetries: number;
+    waitTime?: number;
+  };
+  onRetry: () => void;
+  onSwitchModel: () => void;
+  onSkip: () => void;
+  availableModels: Array<{provider: string; model: string; name: string}>;
+}) => {
+  const [countdown, setCountdown] = useState(Math.ceil((retryInfo.waitTime || 0) / 1000));
+  
+  useEffect(() => {
+    if (countdown <= 0) return;
+    
+    const timer = setInterval(() => {
+      setCountdown(prev => Math.max(0, prev - 1));
+    }, 1000);
+    
+    return () => clearInterval(timer);
+  }, [countdown]);
+
+  const isRateLimit = retryInfo.error.toLowerCase().includes('rate limit') || 
+                      retryInfo.error.toLowerCase().includes('429');
+  
+  const isNetworkError = retryInfo.error.toLowerCase().includes('network') ||
+                         retryInfo.error.toLowerCase().includes('connection');
+
+  return (
+    <div className="bg-red-900/20 backdrop-blur-xl border border-red-500/50 rounded-xl overflow-hidden animate-fade-in-up">
+      <div className="p-6">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 flex items-center justify-center bg-red-500/20 rounded-lg border border-red-500/30">
+              <AlertCircle className="w-6 h-6 text-red-400 animate-pulse" />
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold text-white">Generation Failed</h3>
+              <p className="text-sm text-gray-400">
+                Attempt {retryInfo.retryCount} of {retryInfo.maxRetries}
+              </p>
+            </div>
+          </div>
+          <div className="px-3 py-1.5 bg-red-500/20 border border-red-500/30 rounded-full text-xs font-semibold text-red-300">
+            Waiting
+          </div>
+        </div>
+
+        {/* Module Info */}
+        <div className="mb-4 p-4 bg-black/40 border border-white/10 rounded-lg">
+          <h4 className="font-medium text-white mb-2 flex items-center gap-2">
+            <FileText className="w-4 h-4 text-blue-400" />
+            {retryInfo.moduleTitle}
+          </h4>
+          <div className="text-sm text-gray-300 mb-3">
+            <span className="text-red-400 font-medium">Error:</span> {retryInfo.error}
+          </div>
+          
+          {/* Error Type Badge */}
+          <div className="flex items-center gap-2">
+            {isRateLimit && (
+              <div className="flex items-center gap-1.5 text-xs bg-yellow-500/10 text-yellow-400 px-2 py-1 rounded-md border border-yellow-500/20">
+                <Clock className="w-3 h-3" />
+                Rate Limit - Wait recommended
+              </div>
+            )}
+            {isNetworkError && (
+              <div className="flex items-center gap-1.5 text-xs bg-orange-500/10 text-orange-400 px-2 py-1 rounded-md border border-orange-500/20">
+                <AlertTriangle className="w-3 h-3" />
+                Network Issue
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Suggested Actions */}
+        <div className="mb-6 p-4 bg-blue-500/5 border border-blue-500/20 rounded-lg">
+          <div className="flex items-start gap-3">
+            <Sparkles className="w-5 h-5 text-blue-400 shrink-0 mt-0.5" />
+            <div className="text-sm text-gray-300">
+              <p className="font-medium text-white mb-2">Recommended Actions:</p>
+              <ul className="space-y-1.5 text-xs text-gray-400">
+                {isRateLimit && (
+                  <>
+                    <li>✓ Wait {countdown > 0 ? `${countdown}s` : 'a moment'} and retry with same model</li>
+                    <li>✓ Or switch to a different AI model immediately</li>
+                  </>
+                )}
+                {isNetworkError && (
+                  <>
+                    <li>✓ Check your internet connection</li>
+                    <li>✓ Retry in a few seconds</li>
+                  </>
+                )}
+                {!isRateLimit && !isNetworkError && (
+                  <>
+                    <li>✓ Try a different AI model</li>
+                    <li>✓ Or retry after a short wait</li>
+                  </>
+                )}
+                <li>⚠️ Skipping will mark this module as failed</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        {/* Action Buttons */}
+        <div className="space-y-3">
+          {/* Retry Button */}
+          <button
+            onClick={onRetry}
+            disabled={countdown > 0}
+            className="w-full btn bg-green-600 hover:bg-green-700 disabled:bg-gray-700 disabled:text-gray-500 disabled:cursor-not-allowed rounded-lg text-white font-semibold py-3 transition-all shadow-lg hover:shadow-green-500/30 flex items-center justify-center gap-2"
+          >
+            <RefreshCw className="w-4 h-4" />
+            {countdown > 0 ? `Retry in ${countdown}s` : 'Retry Same Model'}
+          </button>
+
+          {/* Switch Model Button */}
+          {availableModels.length > 0 && (
+            <button
+              onClick={onSwitchModel}
+              className="w-full btn bg-blue-600 hover:bg-blue-700 rounded-lg text-white font-semibold py-3 transition-all shadow-lg hover:shadow-blue-500/30 flex items-center justify-center gap-2"
+            >
+              <Settings className="w-4 h-4" />
+              Switch AI Model ({availableModels.length} available)
+            </button>
+          )}
+
+          {/* Skip Button */}
+          <button
+            onClick={onSkip}
+            className="w-full btn border border-zinc-700 hover:bg-zinc-800 rounded-lg text-gray-300 font-medium py-3 transition-all hover:border-red-500/50 hover:text-red-400 flex items-center justify-center gap-2"
+          >
+            <X className="w-4 h-4" />
+            Skip This Module
+          </button>
+        </div>
+
+        {/* Progress Saved Notice */}
+        <div className="mt-4 text-xs text-zinc-500 flex items-center gap-1.5 justify-center">
+          <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
+          <span>Your progress has been saved. You can also close this tab.</span>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ✅ UPDATED: Embedded Progress Panel with Retry Support
 const EmbeddedProgressPanel = ({
   generationStatus,
   stats,
   onCancel,
   onPause,
   onResume,
+  onRetryDecision,
+  availableModels,
 }: {
   generationStatus: GenerationStatus;
   stats: GenerationStats;
   onCancel?: () => void;
   onPause?: () => void;
   onResume?: () => void;
+  onRetryDecision?: (decision: 'retry' | 'switch' | 'skip') => void;
+  availableModels?: Array<{provider: string; model: string; name: string}>;
 }) => {
   const streamBoxRef = useRef<HTMLDivElement>(null);
   
-  // FIX: Check if paused OR if status is 'paused'
   const isPaused = generationStatus.status === 'paused';
   const isGenerating = generationStatus.status === 'generating';
+  const isWaitingRetry = generationStatus.status === 'waiting_retry';
 
   useEffect(() => {
     if (streamBoxRef.current && generationStatus.currentModule?.generatedText) {
@@ -263,6 +438,19 @@ const EmbeddedProgressPanel = ({
   }, [generationStatus.currentModule?.generatedText]);
 
   const overallProgress = (stats.completedModules / (stats.totalModules || 1)) * 100;
+
+  // ✅ Show retry panel if waiting for retry decision
+  if (isWaitingRetry && generationStatus.retryInfo && onRetryDecision) {
+    return (
+      <RetryDecisionPanel
+        retryInfo={generationStatus.retryInfo}
+        onRetry={() => onRetryDecision('retry')}
+        onSwitchModel={() => onRetryDecision('switch')}
+        onSkip={() => onRetryDecision('skip')}
+        availableModels={availableModels || []}
+      />
+    );
+  }
 
   return (
     <div className={`bg-zinc-900/60 backdrop-blur-xl border rounded-xl overflow-hidden animate-fade-in-up ${
@@ -362,10 +550,9 @@ const EmbeddedProgressPanel = ({
           </>
         )}
 
-        {/* Footer with Action Buttons - ALWAYS VISIBLE */}
+        {/* Footer with Action Buttons */}
         <div className="mt-6 pt-4 border-t border-zinc-800/50">
           <div className="flex items-center justify-between">
-            {/* Left side - Time info */}
             <div className="flex items-center gap-2 text-sm text-zinc-400">
               <Clock className="w-4 h-4 text-yellow-500" />
               <span>
@@ -376,9 +563,7 @@ const EmbeddedProgressPanel = ({
               </span>
             </div>
 
-            {/* Right side - Action buttons */}
             <div className="flex items-center gap-3">
-              {/* FIX: Show cancel button when generating OR paused */}
               {(isGenerating || isPaused) && onCancel && (
                 <button
                   onClick={onCancel}
@@ -390,7 +575,6 @@ const EmbeddedProgressPanel = ({
                 </button>
               )}
 
-              {/* FIX: Show pause button when generating, resume when paused */}
               {isPaused ? (
                 onResume && (
                   <button
@@ -415,7 +599,6 @@ const EmbeddedProgressPanel = ({
             </div>
           </div>
 
-          {/* Helper text */}
           <div className="mt-3 text-xs text-zinc-500 flex items-center gap-1.5">
             <AlertCircle className="w-3.5 h-3.5" />
             <span>
@@ -1125,6 +1308,8 @@ export function BookView({
   onPauseGeneration,
   onResumeGeneration,
   isGenerating,
+  onRetryDecision,
+  availableModels,
 }: BookViewProps) {
   const [detailTab, setDetailTab] = useState<'overview' | 'analytics' | 'read'>('overview');
   const [localIsGenerating, setLocalIsGenerating] = useState(false);
@@ -1141,7 +1326,7 @@ export function BookView({
   });
   const [isEditing, setIsEditing] = useState(false);
   const [editedContent, setEditedContent] = useState('');
-  const currentBook = currentBookId ? books.find((b) => b.id === currentBookId) : null;
+  const currentBook = currentBookId ? books.find(b => b.id === currentBookId) : null;
   const [pdfProgress, setPdfProgress] = useState(0);
 
   useEffect(() => {
@@ -1553,8 +1738,8 @@ export function BookView({
                 </div>
               ) : (
                 <div className="space-y-6">
-                  {/* Generation Progress Panel */}
-                  {(isGenerating || isPaused) &&
+                  {/* ✅ Generation Progress Panel with Retry Support */}
+                  {(isGenerating || isPaused || generationStatus?.status === 'waiting_retry') &&
                     generationStatus &&
                     generationStats && (
                       <EmbeddedProgressPanel
@@ -1569,13 +1754,15 @@ export function BookView({
                         }}
                         onPause={handlePause}
                         onResume={handleResume}
+                        onRetryDecision={onRetryDecision}
+                        availableModels={availableModels}
                       />
                     )}
 
                   {/* Ready to Generate */}
                   {currentBook.status === 'roadmap_completed' &&
                     !areAllModulesDone &&
-                    !isGenerating && !isPaused && (
+                    !isGenerating && !isPaused && generationStatus?.status !== 'waiting_retry' && (
                       <div className="bg-[var(--color-card)] border border-[var(--color-border)] rounded-lg p-6">
                         <div className="flex items-center gap-3 mb-4">
                           <div className="w-12 h-12 flex items-center justify-center bg-blue-500/10 rounded-lg">
@@ -1599,7 +1786,7 @@ export function BookView({
                               <p className="font-medium text-white mb-2">Smart Recovery Enabled</p>
                               <ul className="space-y-1 text-xs text-gray-400">
                                 <li>✓ Progress is saved automatically</li>
-                                <li>✓ Failed modules will be retried 5 times</li>
+                                <li>✓ Failed modules will be retried with smart options</li>
                                 <li>✓ You can safely close and resume later</li>
                               </ul>
                             </div>
@@ -1626,17 +1813,6 @@ export function BookView({
                         </button>
                       </div>
                     )}
-                    
-                  {/* Paused State */}
-                  {isPaused && (
-                    <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-6 text-center">
-                        <h3 className="text-lg font-semibold text-yellow-300 mb-2">Generation Paused</h3>
-                        <p className="text-sm text-yellow-400 mb-4">Your progress is saved. You can resume generation whenever you're ready.</p>
-                        <button onClick={handleResume} className="btn btn-primary">
-                            <Play className="w-4 h-4" /> Resume Generation
-                        </button>
-                    </div>
-                  )}
 
                   {/* All Modules Done */}
                   {areAllModulesDone && currentBook.status !== 'completed' && !localIsGenerating && (
@@ -1732,7 +1908,7 @@ export function BookView({
 
                   {/* Learning Roadmap */}
                   {currentBook.roadmap &&
-                    (currentBook.status !== 'completed' && !isGenerating && !isPaused) && (
+                    (currentBook.status !== 'completed' && !isGenerating && !isPaused && generationStatus?.status !== 'waiting_retry') && (
                       <div className="bg-[var(--color-card)] border border-[var(--color-border)] rounded-lg p-6">
                         <div className="flex items-center gap-3 mb-6">
                           <ListChecks className="w-5 h-5 text-purple-400" />
