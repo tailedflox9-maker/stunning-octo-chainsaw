@@ -1,4 +1,4 @@
-// src/services/pdfService.ts - FIXED VERSION WITH ALL IMPROVEMENTS
+// src/services/pdfService.ts - COMPLETE FIXED VERSION WITH ALL FEATURES
 import { BookProject } from '../types';
 
 let isGenerating = false;
@@ -8,11 +8,23 @@ async function loadPdfMake() {
   if (pdfMake) return pdfMake;
   
   try {
-    const pdfMakeModule = await import('pdfmake/build/pdfmake');
-    const pdfFontsModule = await import('pdfmake/build/vfs_fonts');
+    // Dynamic imports for better error handling
+    const [pdfMakeModule, pdfFontsModule] = await Promise.all([
+      import('pdfmake/build/pdfmake'),
+      import('pdfmake/build/vfs_fonts')
+    ]);
     
-    pdfMake = pdfMakeModule.default;
-    pdfMake.vfs = pdfFontsModule.default.pdfMake.vfs;
+    pdfMake = pdfMakeModule.default || pdfMakeModule;
+    
+    // Critical fix: Access vfs correctly from multiple possible structures
+    const fonts = pdfFontsModule.default || pdfFontsModule;
+    if (fonts && fonts.pdfMake && fonts.pdfMake.vfs) {
+      pdfMake.vfs = fonts.pdfMake.vfs;
+    } else if (fonts && fonts.vfs) {
+      pdfMake.vfs = fonts.vfs;
+    } else {
+      throw new Error('Font files not properly loaded');
+    }
     
     return pdfMake;
   } catch (error) {
