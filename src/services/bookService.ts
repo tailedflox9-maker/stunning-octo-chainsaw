@@ -1,4 +1,4 @@
-// src/services/bookService.ts - FIXED PERSISTENT PAUSE/RESUME
+// src/services/bookService.ts - ENHANCED WITH BETTER RETRY LOGIC
 import { BookProject, BookRoadmap, BookModule, RoadmapModule, BookSession } from '../types/book';
 import { APISettings, ModelProvider } from '../types';
 import { generateId } from '../utils/helpers';
@@ -24,10 +24,17 @@ export interface GenerationStatus {
     generatedText?: string;
   };
   totalProgress: number;
-  status: 'idle' | 'generating' | 'completed' | 'error' | 'paused';
+  status: 'idle' | 'generating' | 'completed' | 'error' | 'paused' | 'waiting_retry';
   logMessage?: string;
   totalWordsGenerated?: number;
   aiStage?: 'analyzing' | 'writing' | 'examples' | 'polishing' | 'complete';
+  retryInfo?: {
+    moduleTitle: string;
+    error: string;
+    retryCount: number;
+    maxRetries: number;
+    waitTime?: number;
+  };
 }
 
 class BookGenerationService {
@@ -45,6 +52,7 @@ class BookGenerationService {
   private activeRequests = new Map<string, AbortController>();
   private checkpoints = new Map<string, GenerationCheckpoint>();
   private currentGeneratedTexts = new Map<string, string>();
+  private userRetryDecisions = new Map<string, 'retry' | 'switch' | 'skip'>();
   
   private readonly MAX_MODULE_RETRIES = 5;
   private readonly RETRY_DELAY_BASE = 3000;
@@ -147,7 +155,6 @@ class BookGenerationService {
     }
   }
 
-  // ✅ FIX: Persistent pause flag using localStorage
   pauseGeneration(bookId: string) {
     try {
       localStorage.setItem(`pause_flag_${bookId}`, 'true');
@@ -163,7 +170,6 @@ class BookGenerationService {
     });
   }
 
-  // ✅ FIX: Clear persistent pause flag
   resumeGeneration(bookId: string) {
     try {
       localStorage.removeItem(`pause_flag_${bookId}`);
@@ -173,7 +179,6 @@ class BookGenerationService {
     }
   }
 
-  // ✅ FIX: Check persistent pause flag
   isPaused(bookId: string): boolean {
     try {
       const pauseFlag = localStorage.getItem(`pause_flag_${bookId}`);
@@ -254,6 +259,78 @@ class BookGenerationService {
     const exponentialDelay = this.RETRY_DELAY_BASE * Math.pow(2, attempt - 1);
     const jitter = Math.random() * 1000;
     return Math.min(exponentialDelay + jitter, this.MAX_RETRY_DELAY);
+  }
+
+  // ✅ NEW: Get available alternative providers
+  private getAlternativeProviders(): Array<{provider: ModelProvider; model: string; name: string}> {
+    const alternatives: Array<{provider: ModelProvider; model: string; name: string}> = [];
+    
+    if (this.settings.googleApiKey && this.settings.selectedProvider !== 'google') {
+      alternatives.push({
+        provider: 'google',
+        model: 'gemini-2.5-flash',
+        name: 'Google Gemini 2.5 Flash'
+      });
+    }
+    
+    if (this.settings.mistralApiKey && this.settings.selectedProvider !== 'mistral') {
+      alternatives.push({
+        provider: 'mistral',
+        model: 'mistral-small-latest',
+        name: 'Mistral Small'
+      });
+    }
+    
+    if (this.settings.zhipuApiKey && this.settings.selectedProvider !== 'zhipu') {
+      alternatives.push({
+        provider: 'zhipu',
+        model: 'glm-4.5-flash',
+        name: 'GLM 4.5 Flash'
+      });
+    }
+    
+    return alternatives;
+  }
+
+  // ✅ NEW: Wait for user decision on retry
+  private async waitForUserRetryDecision(
+    bookId: string,
+    moduleTitle: string,
+    error: string,
+    retryCount: number
+  ): Promise<'retry' | 'switch' | 'skip'> {
+    const alternatives = this.getAlternativeProviders();
+    
+    // Show retry UI
+    this.updateGenerationStatus(bookId, {
+      status: 'waiting_retry',
+      totalProgress: 0,
+      logMessage: `⚠️ Error generating: ${moduleTitle}`,
+      retryInfo: {
+        moduleTitle,
+        error,
+        retryCount,
+        maxRetries: this.MAX_MODULE_RETRIES,
+        waitTime: this.calculateRetryDelay(retryCount, this.isRateLimitError({ message: error }))
+      }
+    });
+
+    // Wait for user decision (stored in userRetryDecisions map)
+    return new Promise((resolve) => {
+      const checkInterval = setInterval(() => {
+        const decision = this.userRetryDecisions.get(bookId);
+        if (decision) {
+          this.userRetryDecisions.delete(bookId);
+          clearInterval(checkInterval);
+          resolve(decision);
+        }
+      }, 500);
+    });
+  }
+
+  // ✅ NEW: User action handlers
+  setRetryDecision(bookId: string, decision: 'retry' | 'switch' | 'skip') {
+    this.userRetryDecisions.set(bookId, decision);
   }
 
   private async generateWithAI(prompt: string, bookId?: string, onChunk?: (chunk: string) => void): Promise<string> {
@@ -616,6 +693,7 @@ Return ONLY valid JSON:
     return roadmap;
   }
 
+  // ✅ ENHANCED: Module generation with user retry decision
   async generateModuleContentWithRetry(
     book: BookProject,
     roadmapModule: RoadmapModule,
@@ -728,12 +806,35 @@ Return ONLY valid JSON:
 
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       
-      if (this.shouldRetry(error, attemptNumber)) {
-        const isRateLimit = this.isRateLimitError(error);
-        const delay = this.calculateRetryDelay(attemptNumber, isRateLimit);
-        
-        await sleep(delay);
-        return this.generateModuleContentWithRetry(book, roadmapModule, session, attemptNumber + 1);
+      // ✅ NEW: Ask user before retrying
+      if (attemptNumber < this.MAX_MODULE_RETRIES && this.shouldRetry(error, attemptNumber)) {
+        const decision = await this.waitForUserRetryDecision(
+          book.id,
+          roadmapModule.title,
+          errorMessage,
+          attemptNumber
+        );
+
+        if (decision === 'retry') {
+          const delay = this.calculateRetryDelay(attemptNumber, this.isRateLimitError(error));
+          await sleep(delay);
+          return this.generateModuleContentWithRetry(book, roadmapModule, session, attemptNumber + 1);
+        } else if (decision === 'switch') {
+          // User will switch model manually, throw error to stop current flow
+          throw new Error('USER_REQUESTED_MODEL_SWITCH');
+        } else {
+          // Skip this module
+          return {
+            id: generateId(),
+            roadmapModuleId: roadmapModule.id,
+            title: roadmapModule.title,
+            content: '',
+            wordCount: 0,
+            status: 'error',
+            error: `Skipped by user after ${attemptNumber} attempts`,
+            generatedAt: new Date()
+          };
+        }
       }
 
       this.updateGenerationStatus(book.id, {
@@ -793,12 +894,11 @@ ${session.preferences?.includePracticalExercises ? '### Practice Exercises' : ''
 ### Key Takeaways`;
   }
 
-async generateAllModulesWithRecovery(book: BookProject, session: BookSession): Promise<void> {
+  async generateAllModulesWithRecovery(book: BookProject, session: BookSession): Promise<void> {
     if (!book.roadmap) {
       throw new Error('No roadmap available');
     }
     
-    // ✅ FIX: Clear pause flag at the start
     this.resumeGeneration(book.id);
     
     const checkpoint = this.loadCheckpoint(book.id);
@@ -844,7 +944,6 @@ async generateAllModulesWithRecovery(book: BookProject, session: BookSession): P
     for (let i = 0; i < modulesToGenerate.length; i++) {
       const roadmapModule = modulesToGenerate[i];
       
-      // ✅ FIX: Check pause flag at the START of each iteration
       if (this.isPaused(book.id)) {
         console.log('⏸ Generation paused, saving checkpoint...');
         const totalWords = completedModules.reduce((sum, m) => 
@@ -861,7 +960,7 @@ async generateAllModulesWithRecovery(book: BookProject, session: BookSession): P
         );
         
         this.updateProgress(book.id, {
-          status: 'generating_content', // Keep status for resume
+          status: 'generating_content',
           modules: [...completedModules],
           progress: 15 + ((completedModules.length / book.roadmap.modules.length) * 70)
         });
@@ -887,7 +986,6 @@ async generateAllModulesWithRecovery(book: BookProject, session: BookSession): P
           retryCount + 1
         );
 
-        // ✅ FIX: Check pause flag AFTER module generation
         if (this.isPaused(book.id)) {
           console.log('⏸ Generation paused after module completion');
           const totalWords = completedModules.reduce((sum, m) => 
@@ -974,33 +1072,62 @@ async generateAllModulesWithRecovery(book: BookProject, session: BookSession): P
         }
 
       } catch (error) {
-        if (error instanceof Error && error.message === 'GENERATION_PAUSED') {
-          console.log('⏸ Generation paused during module generation');
-          const totalWords = completedModules.reduce((sum, m) => 
-            sum + (m.status === 'completed' ? m.wordCount : 0), 0
-          );
+        if (error instanceof Error) {
+          if (error.message === 'GENERATION_PAUSED') {
+            console.log('⏸ Generation paused during module generation');
+            const totalWords = completedModules.reduce((sum, m) => 
+              sum + (m.status === 'completed' ? m.wordCount : 0), 0
+            );
+            
+            this.saveCheckpoint(
+              book.id,
+              Array.from(completedModuleIds),
+              Array.from(failedModuleIds),
+              i - 1,
+              moduleRetryCount,
+              totalWords
+            );
+            
+            this.updateProgress(book.id, {
+              status: 'generating_content',
+              modules: [...completedModules]
+            });
           
-          this.saveCheckpoint(
-            book.id,
-            Array.from(completedModuleIds),
-            Array.from(failedModuleIds),
-            i - 1, // Save progress up to the previous module
-            moduleRetryCount,
-            totalWords
-          );
+            this.updateGenerationStatus(book.id, {
+              status: 'paused',
+              totalProgress: 0,
+              logMessage: '⏸ Generation paused by user'
+            });
           
-          this.updateProgress(book.id, {
-            status: 'generating_content',
-            modules: [...completedModules]
-          });
-        
-          this.updateGenerationStatus(book.id, {
-            status: 'paused',
-            totalProgress: 0,
-            logMessage: '⏸ Generation paused by user'
-          });
-        
-          return;
+            return;
+          } else if (error.message === 'USER_REQUESTED_MODEL_SWITCH') {
+            // Save checkpoint and stop
+            const totalWords = completedModules.reduce((sum, m) => 
+              sum + (m.status === 'completed' ? m.wordCount : 0), 0
+            );
+            
+            this.saveCheckpoint(
+              book.id,
+              Array.from(completedModuleIds),
+              Array.from(failedModuleIds),
+              i,
+              moduleRetryCount,
+              totalWords
+            );
+            
+            this.updateProgress(book.id, {
+              status: 'generating_content',
+              modules: [...completedModules]
+            });
+            
+            this.updateGenerationStatus(book.id, {
+              status: 'paused',
+              totalProgress: 0,
+              logMessage: '⚙️ Waiting for model switch...'
+            });
+            
+            return;
+          }
         }
 
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -1067,7 +1194,7 @@ async generateAllModulesWithRecovery(book: BookProject, session: BookSession): P
       return;
     }
 
-    this.resumeGeneration(book.id); // Ensure pause flag is cleared for retry
+    this.resumeGeneration(book.id);
 
     const completedModules = book.modules.filter(m => m.status === 'completed');
     const updatedModules = [...completedModules];
@@ -1077,7 +1204,7 @@ async generateAllModulesWithRecovery(book: BookProject, session: BookSession): P
         console.log('⏸ Retry paused');
         this.updateProgress(book.id, { 
           modules: [...updatedModules],
-          status: 'error', // Keep error status if paused mid-retry
+          status: 'error',
           error: `Retry paused with ${failedModules.length - updatedModules.filter(m => m.status === 'completed').length} remaining`
         });
         return;
@@ -1096,12 +1223,12 @@ async generateAllModulesWithRecovery(book: BookProject, session: BookSession): P
           session
         );
 
-        if (this.isPaused(book.id)) { // Check pause after successful retry of a module
+        if (this.isPaused(book.id)) {
             console.log('⏸ Retry paused after module completion');
-            updatedModules.push(newModule); // Add the just completed module
+            updatedModules.push(newModule);
             this.updateProgress(book.id, { 
                 modules: [...updatedModules],
-                status: 'error', // Keep error status
+                status: 'error',
                 error: 'Retry paused by user'
             });
             return;
@@ -1115,19 +1242,13 @@ async generateAllModulesWithRecovery(book: BookProject, session: BookSession): P
         if (error instanceof Error && error.message === 'GENERATION_PAUSED') {
           this.updateProgress(book.id, { 
             modules: [...updatedModules],
-            status: 'error', // Keep error status
+            status: 'error',
             error: 'Retry paused by user'
           });
           return;
         }
-        // If a module still fails after retries in generateModuleContentWithRetry,
-        // it will already be marked as 'error' and added to updatedModules.
-        // We just need to ensure the parent loop doesn't get stuck.
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         console.error(`Module ${roadmapModule.title} failed during retry: ${errorMessage}`);
-        // The failedModule will already be in updatedModules if it failed internally
-        // or we can explicitly re-add it if it was removed.
-        // For simplicity, we assume generateModuleContentWithRetry already handles adding it with 'error' status.
       }
     }
 
@@ -1136,7 +1257,7 @@ async generateAllModulesWithRecovery(book: BookProject, session: BookSession): P
     if (stillFailed === 0) {
       this.clearCheckpoint(book.id);
       this.updateProgress(book.id, {
-        status: 'roadmap_completed', // All modules completed after retry
+        status: 'roadmap_completed',
         modules: updatedModules,
         progress: 90
       });
@@ -1283,12 +1404,10 @@ Format:
         this.activeRequests.get(bookId)?.abort();
         this.activeRequests.delete(bookId);
       }
-      this.pauseGeneration(bookId); // Set pause flag when cancelling
+      this.pauseGeneration(bookId);
     } else {
       this.activeRequests.forEach(controller => controller.abort());
       this.activeRequests.clear();
-      // If cancelling all, potentially clear all pause flags if desired
-      // Or iterate through all books in storage and clear their pause flags
     }
   }
 
@@ -1300,7 +1419,6 @@ Format:
     const checkpoint = this.loadCheckpoint(bookId);
     if (!checkpoint) return null;
     
-    // Ensure all relevant properties are present before accessing
     const completed = Array.isArray(checkpoint.completedModuleIds) ? checkpoint.completedModuleIds.length : 0;
     const failed = Array.isArray(checkpoint.failedModuleIds) ? checkpoint.failedModuleIds.length : 0;
 
