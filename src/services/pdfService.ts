@@ -223,6 +223,19 @@ class PremiumPdfGenerator {
         color: '#4a5568',
         lineHeight: 1.7
       },
+      
+      // Table styles
+      tableHeader: {
+        fontSize: 11,
+        bold: true,
+        color: '#2a2a2a',
+        fillColor: '#f7fafc'
+      },
+      tableCell: {
+        fontSize: 10.5,
+        color: '#2a2a2a',
+        lineHeight: 1.4
+      }
     };
   }
 
@@ -248,6 +261,9 @@ class PremiumPdfGenerator {
     const lines = markdown.split('\n');
     let paragraphBuffer: string[] = [];
     let isFirstModule = true;
+    let inTable = false;
+    let tableRows: string[][] = [];
+    let tableHeaders: string[] = [];
 
     const flushParagraph = () => {
       if (paragraphBuffer.length > 0) {
@@ -257,17 +273,87 @@ class PremiumPdfGenerator {
       }
     };
 
-    for (const line of lines) {
-      const trimmed = line.trim();
+    const flushTable = () => {
+      if (tableRows.length > 0 && tableHeaders.length > 0) {
+        content.push({
+          table: {
+            headerRows: 1,
+            widths: Array(tableHeaders.length).fill('*'),
+            body: [
+              tableHeaders.map(h => ({ 
+                text: this.cleanText(h), 
+                style: 'tableHeader', 
+                fillColor: '#f7fafc' 
+              })),
+              ...tableRows.map(row => 
+                row.map(cell => ({ 
+                  text: this.cleanText(cell), 
+                  style: 'tableCell' 
+                }))
+              )
+            ]
+          },
+          layout: {
+            hLineWidth: () => 0.5,
+            vLineWidth: () => 0.5,
+            hLineColor: () => '#cbd5e0',
+            vLineColor: () => '#cbd5e0',
+            paddingLeft: () => 8,
+            paddingRight: () => 8,
+            paddingTop: () => 6,
+            paddingBottom: () => 6
+          },
+          margin: [0, 10, 0, 15]
+        });
+        tableRows = [];
+        tableHeaders = [];
+        inTable = false;
+      }
+    };
+
+    for (let i = 0; i < lines.length; i++) {
+      const trimmed = lines[i].trim();
 
       if (!trimmed) {
         flushParagraph();
+        flushTable();
         continue;
       }
 
-      // Check if this is a module heading
+      // Table detection
+      if (trimmed.includes('|') && !inTable) {
+        flushParagraph();
+        const cells = trimmed.split('|').filter(c => c.trim()).map(c => c.trim());
+        
+        // Check if next line is separator
+        const nextLine = lines[i + 1]?.trim() || '';
+        if (nextLine.match(/^\|?[\s\-:]+\|/)) {
+          tableHeaders = cells;
+          inTable = true;
+          i++; // Skip separator line
+          continue;
+        }
+      }
+
+      // Table row
+      if (inTable && trimmed.includes('|')) {
+        const cells = trimmed.split('|').filter(c => c.trim()).map(c => c.trim());
+        if (cells.length === tableHeaders.length) {
+          tableRows.push(cells);
+          continue;
+        } else {
+          flushTable();
+        }
+      }
+
+      // If we were in a table but this line isn't part of it
+      if (inTable && !trimmed.includes('|')) {
+        flushTable();
+      }
+
+      // Check if this is a module heading (# Module X:)
       const isModuleHeading = trimmed.startsWith('# ') && 
-                              this.cleanText(trimmed.substring(2)).toLowerCase().startsWith('module');
+                              /^#\s+module\s+\d+/i.test(trimmed);
 
       if (trimmed.startsWith('# ')) {
         flushParagraph();
@@ -281,6 +367,8 @@ class PremiumPdfGenerator {
           }
           isFirstModule = false;
           
+          content.push({ text, style: 'h1Module' });
+        } else {
           content.push({ text, style: 'h1Module' });
         }
       } else if (trimmed.startsWith('## ')) {
@@ -320,6 +408,7 @@ class PremiumPdfGenerator {
     }
 
     flushParagraph();
+    flushTable();
     return content;
   }
 
@@ -547,11 +636,82 @@ class PremiumPdfGenerator {
           .toLowerCase()
           .substring(0, 50)}_${new Date().toISOString().slice(0, 10)}.pdf`;
         
-        pdfDocGenerator.download(filename, () => {
-          console.log('✅ PDF downloaded:', filename);
-          onProgress(100);
-          resolve();
-        });
+        // Show warning popup before download
+        const hasEmojis = /[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu.test(
+          project.finalBook || ''
+        );
+        
+        const hasComplexFormatting = (project.finalBook || '').includes('```') || 
+                                     (project.finalBook || '').includes('~~');
+        
+        if (hasEmojis || hasComplexFormatting) {
+          // Create custom warning popup
+          const popup = document.createElement('div');
+          popup.className = 'fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in';
+          popup.innerHTML = `
+            <div class="bg-[#1F1F1F] border border-[#2A2A2A] rounded-2xl shadow-2xl max-w-md w-full p-6 animate-fade-in-up">
+              <div class="flex items-center gap-3 mb-4">
+                <div class="w-10 h-10 rounded-lg bg-yellow-500/10 flex items-center justify-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-yellow-400">
+                    <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/>
+                    <line x1="12" y1="9" x2="12" y2="13"/>
+                    <line x1="12" y1="17" x2="12.01" y2="17"/>
+                  </svg>
+                </div>
+                <h3 class="text-lg font-semibold text-white">PDF Format Notice</h3>
+              </div>
+              
+              <div class="space-y-3 mb-6">
+                <p class="text-sm text-gray-300 leading-relaxed">
+                  Your PDF is ready to download! Please note:
+                </p>
+                <ul class="space-y-2 text-sm text-gray-400">
+                  ${hasEmojis ? '<li class="flex items-start gap-2"><span class="text-yellow-400 shrink-0">•</span><span>Emojis have been removed for PDF compatibility</span></li>' : ''}
+                  ${hasComplexFormatting ? '<li class="flex items-start gap-2"><span class="text-yellow-400 shrink-0">•</span><span>Some advanced formatting may be simplified</span></li>' : ''}
+                  <li class="flex items-start gap-2"><span class="text-green-400 shrink-0">✓</span><span>Tables and basic formatting are preserved</span></li>
+                  <li class="flex items-start gap-2"><span class="text-blue-400 shrink-0">💡</span><span>For complete content, download the .md version</span></li>
+                </ul>
+              </div>
+              
+              <div class="flex gap-3">
+                <button id="cancel-pdf" class="flex-1 px-4 py-2.5 bg-white/5 border border-white/10 rounded-lg text-gray-300 hover:bg-white/10 hover:text-white font-medium transition-all">
+                  Cancel
+                </button>
+                <button id="download-pdf" class="flex-1 px-4 py-2.5 bg-blue-500 hover:bg-blue-600 rounded-lg text-white font-semibold transition-all shadow-lg">
+                  Download PDF
+                </button>
+              </div>
+            </div>
+          `;
+          
+          document.body.appendChild(popup);
+          
+          // Handle buttons
+          const cancelBtn = popup.querySelector('#cancel-pdf');
+          const downloadBtn = popup.querySelector('#download-pdf');
+          
+          cancelBtn?.addEventListener('click', () => {
+            document.body.removeChild(popup);
+            onProgress(0);
+            reject(new Error('Download cancelled by user'));
+          });
+          
+          downloadBtn?.addEventListener('click', () => {
+            document.body.removeChild(popup);
+            pdfDocGenerator.download(filename, () => {
+              console.log('✅ PDF downloaded:', filename);
+              onProgress(100);
+              resolve();
+            });
+          });
+        } else {
+          // No warnings needed, download directly
+          pdfDocGenerator.download(filename, () => {
+            console.log('✅ PDF downloaded:', filename);
+            onProgress(100);
+            resolve();
+          });
+        }
       } catch (error) {
         console.error('❌ PDF creation failed:', error);
         reject(error);
