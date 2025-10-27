@@ -1,4 +1,4 @@
-// src/services/pdfService.ts - PREMIUM QUALITY VERSION
+// src/services/pdfService.ts - FIXED VERSION WITH ALL IMPROVEMENTS
 import { BookProject } from '../types';
 
 let isGenerating = false;
@@ -33,126 +33,120 @@ interface PDFContent {
   canvas?: any;
   columns?: any[];
   pageOrientation?: string;
+  tocItem?: boolean;
 }
 
 class PremiumPdfGenerator {
   private content: PDFContent[] = [];
   private styles: any;
-  private tableOfContents: { title: string; page: number; level: number }[] = [];
+  private tocItems: { title: string; level: number }[] = [];
 
   constructor() {
     this.styles = {
-      // Cover Page Styles
+      // Cover Page
       coverTitle: {
-        fontSize: 32,
+        fontSize: 34,
         bold: true,
         alignment: 'center',
-        margin: [0, 120, 0, 20],
-        color: '#1a1a1a'
+        margin: [0, 150, 0, 25],
+        color: '#1a1a1a',
+        lineHeight: 1.2
       },
       coverSubtitle: {
         fontSize: 14,
         alignment: 'center',
         color: '#555555',
-        margin: [0, 0, 0, 8]
-      },
-      coverDivider: {
-        margin: [100, 15, 100, 15]
+        margin: [0, 0, 0, 10]
       },
       coverBrand: {
         fontSize: 11,
         alignment: 'center',
         color: '#888888',
-        margin: [0, 60, 0, 0],
+        margin: [0, 80, 0, 0],
         italics: true
-      },
-      
-      // Heading Styles - Enhanced
-      h1: {
-        fontSize: 24,
-        bold: true,
-        margin: [0, 25, 0, 12],
-        color: '#1a1a1a',
-        lineHeight: 1.3
-      },
-      h2: {
-        fontSize: 18,
-        bold: true,
-        margin: [0, 20, 0, 10],
-        color: '#2a2a2a',
-        lineHeight: 1.3
-      },
-      h3: {
-        fontSize: 15,
-        bold: true,
-        margin: [0, 16, 0, 8],
-        color: '#333333',
-        lineHeight: 1.3
-      },
-      h4: {
-        fontSize: 13,
-        bold: true,
-        margin: [0, 14, 0, 7],
-        color: '#444444',
-        lineHeight: 1.3
-      },
-      
-      // Body Text - Premium Typography
-      paragraph: {
-        fontSize: 11,
-        lineHeight: 1.7,
-        alignment: 'justify',
-        margin: [0, 0, 0, 12],
-        color: '#2a2a2a'
-      },
-      
-      // List Styles
-      listItem: {
-        fontSize: 11,
-        lineHeight: 1.6,
-        margin: [0, 4, 0, 4],
-        color: '#2a2a2a'
-      },
-      
-      // Code Block - Professional
-      codeBlock: {
-        font: 'Courier',
-        fontSize: 9,
-        margin: [0, 8, 0, 12],
-        color: '#2d3748',
-        lineHeight: 1.5
-      },
-      
-      // Blockquote - Elegant
-      blockquote: {
-        fontSize: 11,
-        italics: true,
-        margin: [20, 12, 0, 12],
-        color: '#4a5568',
-        lineHeight: 1.6
       },
       
       // Table of Contents
       tocTitle: {
-        fontSize: 22,
+        fontSize: 24,
         bold: true,
-        margin: [0, 0, 0, 20],
+        margin: [0, 40, 0, 30],
         color: '#1a1a1a'
       },
-      tocItem: {
+      tocH1: {
+        fontSize: 13,
+        bold: true,
+        margin: [0, 12, 0, 6],
+        color: '#2a2a2a'
+      },
+      tocH2: {
         fontSize: 11,
-        margin: [0, 3, 0, 3],
+        margin: [20, 6, 0, 4],
+        color: '#4a5568'
+      },
+      
+      // Headings
+      h1: {
+        fontSize: 26,
+        bold: true,
+        margin: [0, 30, 0, 15],
+        color: '#1a1a1a',
+        lineHeight: 1.3
+      },
+      h2: {
+        fontSize: 19,
+        bold: true,
+        margin: [0, 24, 0, 12],
+        color: '#2a2a2a',
+        lineHeight: 1.3
+      },
+      h3: {
+        fontSize: 16,
+        bold: true,
+        margin: [0, 18, 0, 10],
+        color: '#333333',
+        lineHeight: 1.3
+      },
+      h4: {
+        fontSize: 14,
+        bold: true,
+        margin: [0, 15, 0, 8],
+        color: '#444444'
+      },
+      
+      // Body Text
+      paragraph: {
+        fontSize: 11,
+        lineHeight: 1.8,
+        alignment: 'justify',
+        margin: [0, 0, 0, 14],
         color: '#2a2a2a'
       },
       
-      // Special Elements
-      emphasis: {
-        bold: true,
-        color: '#1a1a1a'
+      // Lists
+      listItem: {
+        fontSize: 11,
+        lineHeight: 1.7,
+        margin: [0, 5, 0, 5],
+        color: '#2a2a2a'
       },
-      link: {
-        color: '#2563eb',
-        decoration: 'underline'
+      
+      // Code
+      codeBlock: {
+        font: 'Courier',
+        fontSize: 9,
+        margin: [0, 10, 0, 15],
+        color: '#2d3748',
+        lineHeight: 1.6
+      },
+      
+      // Blockquote
+      blockquote: {
+        fontSize: 11,
+        italics: true,
+        margin: [20, 15, 0, 15],
+        color: '#4a5568',
+        lineHeight: 1.7
       }
     };
   }
@@ -171,7 +165,7 @@ class PremiumPdfGenerator {
         const text = paragraphBuffer.join(' ').trim();
         if (text.length > 0) {
           content.push({ 
-            text: this.parseInlineFormatting(text), 
+            text: this.cleanText(text), 
             style: 'paragraph' 
           });
         }
@@ -183,10 +177,10 @@ class PremiumPdfGenerator {
       if (listItems.length > 0 && currentListType) {
         content.push({
           [currentListType]: listItems.map(item => ({
-            text: this.parseInlineFormatting(item),
+            text: this.cleanText(item),
             style: 'listItem'
           })),
-          margin: [0, 8, 0, 12]
+          margin: [0, 10, 0, 15]
         });
         listItems = [];
         currentListType = null;
@@ -213,15 +207,15 @@ class PremiumPdfGenerator {
                 }]]
               },
               layout: {
-                fillColor: '#f7fafc',
+                fillColor: '#f8f9fa',
                 hLineWidth: () => 1,
                 vLineWidth: () => 1,
-                hLineColor: () => '#e2e8f0',
-                vLineColor: () => '#e2e8f0',
-                paddingLeft: () => 12,
-                paddingRight: () => 12,
-                paddingTop: () => 10,
-                paddingBottom: () => 10
+                hLineColor: () => '#dee2e6',
+                vLineColor: () => '#dee2e6',
+                paddingLeft: () => 15,
+                paddingRight: () => 15,
+                paddingTop: () => 12,
+                paddingBottom: () => 12
               }
             });
           }
@@ -243,77 +237,80 @@ class PremiumPdfGenerator {
         continue;
       }
 
-      // Horizontal rule - Enhanced
+      // Horizontal rule
       if (trimmed.match(/^[-*_]{3,}$/)) {
         flushParagraph();
         flushList();
         content.push({
           canvas: [{
             type: 'line',
-            x1: 50, y1: 0,
-            x2: 465, y2: 0,
+            x1: 60, y1: 0,
+            x2: 455, y2: 0,
             lineWidth: 0.5,
             lineColor: '#cbd5e0'
           }],
-          margin: [0, 15, 0, 15]
+          margin: [0, 18, 0, 18]
         });
         continue;
       }
 
-      // Headings - with decorative lines
+      // Headings with TOC tracking
       if (trimmed.startsWith('# ')) {
         flushParagraph();
         flushList();
         const text = this.cleanText(trimmed.substring(2));
+        this.tocItems.push({ title: text, level: 1 });
         
-        // Main heading with underline
         content.push({ text, style: 'h1' });
         content.push({
           canvas: [{
             type: 'line',
             x1: 0, y1: 0,
             x2: 515, y2: 0,
-            lineWidth: 2,
+            lineWidth: 2.5,
             lineColor: '#2d3748'
           }],
-          margin: [0, 0, 0, 20]
+          margin: [0, 0, 0, 25]
         });
       } else if (trimmed.startsWith('## ')) {
         flushParagraph();
         flushList();
         const text = this.cleanText(trimmed.substring(3));
+        this.tocItems.push({ title: text, level: 2 });
+        
         content.push({ text, style: 'h2' });
         content.push({
           canvas: [{
             type: 'line',
             x1: 0, y1: 0,
-            x2: 100, y2: 0,
-            lineWidth: 1.5,
+            x2: 120, y2: 0,
+            lineWidth: 2,
             lineColor: '#4a5568'
           }],
-          margin: [0, 0, 0, 12]
+          margin: [0, 0, 0, 15]
         });
       } else if (trimmed.startsWith('### ')) {
         flushParagraph();
         flushList();
-        content.push({ text: this.cleanText(trimmed.substring(4)), style: 'h3' });
+        const text = this.cleanText(trimmed.substring(4));
+        content.push({ text, style: 'h3' });
       } else if (trimmed.startsWith('#### ')) {
         flushParagraph();
         flushList();
         content.push({ text: this.cleanText(trimmed.substring(5)), style: 'h4' });
       }
-      // Enhanced Blockquote
+      // Blockquote
       else if (trimmed.startsWith('>')) {
         flushParagraph();
         flushList();
         const quoteText = this.cleanText(trimmed.substring(1));
         content.push({
           table: {
-            widths: [4, '*'],
+            widths: [5, '*'],
             body: [[
-              { text: '', fillColor: '#4299e1', border: [false, false, false, false] },
+              { text: '', fillColor: '#3182ce', border: [false, false, false, false] },
               { 
-                text: this.parseInlineFormatting(quoteText), 
+                text: quoteText, 
                 border: [false, false, false, false], 
                 style: 'blockquote',
                 fillColor: '#f7fafc'
@@ -323,12 +320,12 @@ class PremiumPdfGenerator {
           layout: {
             hLineWidth: () => 0,
             vLineWidth: () => 0,
-            paddingLeft: (i: number) => i === 0 ? 0 : 15,
-            paddingRight: () => 15,
-            paddingTop: () => 10,
-            paddingBottom: () => 10
+            paddingLeft: (i: number) => i === 0 ? 0 : 18,
+            paddingRight: () => 18,
+            paddingTop: () => 12,
+            paddingBottom: () => 12
           },
-          margin: [0, 8, 0, 12]
+          margin: [0, 10, 0, 15]
         });
       }
       // Lists
@@ -347,7 +344,7 @@ class PremiumPdfGenerator {
         }
         listItems.push(this.cleanText(trimmed.replace(/^\d+\.\s+/, '')));
       }
-      // Paragraph accumulation for better text flow
+      // Paragraph
       else {
         flushList();
         const cleanedText = this.cleanText(trimmed);
@@ -362,22 +359,9 @@ class PremiumPdfGenerator {
     return content;
   }
 
-  private parseInlineFormatting(text: string): any {
-    // Handle bold, italic, and code inline
-    const parts: any[] = [];
-    let current = text;
-    
-    // Simple parser for inline markdown
-    const boldRegex = /\*\*(.+?)\*\*/g;
-    const italicRegex = /\*(.+?)\*/g;
-    const codeRegex = /`(.+?)`/g;
-    
-    // For simplicity, just clean it - you can enhance this with actual formatting
-    return this.cleanText(text);
-  }
-
   private cleanText(text: string): string {
     return text
+      // Remove markdown formatting
       .replace(/\*\*\*(.+?)\*\*\*/g, '$1')
       .replace(/\*\*(.+?)\*\*/g, '$1')
       .replace(/\*(.+?)\*/g, '$1')
@@ -387,7 +371,40 @@ class PremiumPdfGenerator {
       .replace(/`(.+?)`/g, '$1')
       .replace(/\[(.+?)\]\(.+?\)/g, '$1')
       .replace(/!\[.*?\]\(.+?\)/g, '')
+      // Remove emoji unicode characters (they don't render in PDF)
+      .replace(/[\u{1F300}-\u{1F9FF}]/gu, '')
+      .replace(/[\u{2600}-\u{26FF}]/gu, '')
+      .replace(/[\u{2700}-\u{27BF}]/gu, '')
       .trim();
+  }
+
+  private createTableOfContents(): PDFContent[] {
+    if (this.tocItems.length === 0) return [];
+
+    const tocContent: PDFContent[] = [
+      { text: 'Table of Contents', style: 'tocTitle' },
+      {
+        canvas: [{
+          type: 'line',
+          x1: 0, y1: 0,
+          x2: 515, y2: 0,
+          lineWidth: 1,
+          lineColor: '#cbd5e0'
+        }],
+        margin: [0, 0, 0, 20]
+      }
+    ];
+
+    this.tocItems.forEach((item, index) => {
+      const style = item.level === 1 ? 'tocH1' : 'tocH2';
+      tocContent.push({
+        text: `${index + 1}. ${item.title}`,
+        style: style
+      });
+    });
+
+    tocContent.push({ text: '', pageBreak: 'after' });
+    return tocContent;
   }
 
   private createPremiumCoverPage(
@@ -395,35 +412,35 @@ class PremiumPdfGenerator {
     metadata: { words: number; modules: number; date: string; provider?: string }
   ): PDFContent[] {
     return [
-      // Top decorative element
+      // Decorative top bar
       {
         canvas: [{
           type: 'rect',
-          x: 200,
+          x: 180,
           y: 0,
-          w: 115,
-          h: 4,
+          w: 155,
+          h: 5,
           color: '#2563eb'
         }],
-        margin: [0, 80, 0, 0]
+        margin: [0, 100, 0, 0]
       },
       
-      // Main title
+      // Title
       { text: title, style: 'coverTitle' },
       
-      // Decorative divider
+      // Divider
       {
         canvas: [{
           type: 'line',
-          x1: 150, y1: 0,
-          x2: 365, y2: 0,
+          x1: 120, y1: 0,
+          x2: 395, y2: 0,
           lineWidth: 1,
           lineColor: '#cbd5e0'
         }],
-        style: 'coverDivider'
+        margin: [0, 20, 0, 20]
       },
       
-      // Metadata section
+      // Metadata
       {
         columns: [
           { width: '*', text: '' },
@@ -432,23 +449,22 @@ class PremiumPdfGenerator {
             stack: [
               { text: `${metadata.words.toLocaleString()} words`, style: 'coverSubtitle' },
               { text: `${metadata.modules} chapters`, style: 'coverSubtitle' },
-              { text: metadata.date, style: 'coverSubtitle', margin: [0, 8, 0, 0] }
+              { text: metadata.date, style: 'coverSubtitle', margin: [0, 10, 0, 0] }
             ]
           },
           { width: '*', text: '' }
         ]
       },
       
-      // Bottom branding
+      // Branding
       { text: 'Generated by Pustakam AI', style: 'coverBrand' },
       {
         text: metadata.provider || 'Powered by Advanced AI',
         style: 'coverBrand',
-        fontSize: 9,
-        margin: [0, 5, 0, 0]
+        fontSize: 10,
+        margin: [0, 8, 0, 0]
       },
       
-      // Page break
       { text: '', pageBreak: 'after' }
     ];
   }
@@ -471,12 +487,15 @@ class PremiumPdfGenerator {
         day: 'numeric'
       })
     });
-    onProgress(30);
+    onProgress(25);
 
     const mainContent = this.parseMarkdownToContent(project.finalBook || '');
-    onProgress(70);
+    onProgress(60);
 
-    this.content = [...coverContent, ...mainContent];
+    const tocContent = this.createTableOfContents();
+    onProgress(75);
+
+    this.content = [...coverContent, ...tocContent, ...mainContent];
 
     const docDefinition: any = {
       content: this.content,
@@ -487,55 +506,55 @@ class PremiumPdfGenerator {
         color: '#2a2a2a'
       },
       pageSize: 'A4',
-      pageMargins: [60, 70, 60, 65],
+      pageMargins: [65, 80, 65, 70],
       
-      // Enhanced header
-      header: (currentPage: number) => {
-        if (currentPage === 1) return {}; // No header on cover
+      // Header
+      header: (currentPage: number, pageCount: number) => {
+        if (currentPage <= 2) return {}; // Skip cover and TOC
         return {
           columns: [
             { 
               text: project.title, 
               style: { fontSize: 9, color: '#718096', italics: true },
-              margin: [60, 15, 0, 0],
+              margin: [65, 20, 0, 0],
               width: '*'
             },
             {
               canvas: [{
                 type: 'line',
                 x1: 0, y1: 0,
-                x2: 50, y2: 0,
+                x2: 60, y2: 0,
                 lineWidth: 0.5,
                 lineColor: '#cbd5e0'
               }],
-              margin: [0, 20, 60, 0],
-              width: 50
+              margin: [0, 25, 65, 0],
+              width: 60
             }
           ]
         };
       },
       
-      // Enhanced footer
+      // Footer
       footer: (currentPage: number, pageCount: number) => {
-        if (currentPage === 1) return {}; // No footer on cover
+        if (currentPage <= 2) return {}; // Skip cover and TOC
         return {
           columns: [
             { 
               text: 'Pustakam AI', 
               style: { fontSize: 8, color: '#a0aec0' }, 
-              margin: [60, 0, 0, 0] 
+              margin: [65, 0, 0, 0] 
             },
             { 
-              text: `${currentPage - 1}`, // Adjust for cover page
+              text: `${currentPage - 2}`, // Adjust for cover and TOC
               alignment: 'center', 
-              style: { fontSize: 9, color: '#4a5568' } 
+              style: { fontSize: 10, color: '#4a5568', bold: true } 
             },
             { 
               text: '', 
-              margin: [0, 0, 60, 0] 
+              margin: [0, 0, 65, 0] 
             }
           ],
-          margin: [0, 15, 0, 0]
+          margin: [0, 20, 0, 0]
         };
       },
       
@@ -544,7 +563,7 @@ class PremiumPdfGenerator {
         title: project.title,
         author: 'Pustakam AI',
         subject: project.goal || 'AI Generated Book',
-        keywords: 'AI, Book, Learning',
+        keywords: 'AI, Book, Learning, Education',
         creator: 'Pustakam Book Generator',
         producer: 'Pustakam AI Engine'
       }
