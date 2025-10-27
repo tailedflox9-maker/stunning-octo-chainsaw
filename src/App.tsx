@@ -288,46 +288,63 @@ function App() {
     }
   };
 
-  const handlePauseGeneration = (bookId: string) => {
-    bookService.pauseGeneration(bookId);
-  };
+const handlePauseGeneration = (bookId: string) => {
+  console.log('🔴 Pause button clicked for book:', bookId);
+  
+  // FIX: Set pause flag in service first
+  bookService.pauseGeneration(bookId);
+  
+  // FIX: Update local state immediately
+  setIsGenerating(false);
+  setGenerationStatus(prev => ({
+    ...prev,
+    status: 'paused',
+    logMessage: '⏸ Pausing generation...'
+  }));
+};
 
-  const handleResumeGeneration = async (book: BookProject, session: BookSession) => {
-    bookService.resumeGeneration(book.id);
-    setGenerationStartTime(new Date());
+const handleResumeGeneration = async (book: BookProject, session: BookSession) => {
+  console.log('▶ Resume button clicked for book:', book.id);
+  
+  // FIX: Clear pause flag first
+  bookService.resumeGeneration(book.id);
+  
+  // FIX: Update local state immediately
+  setIsGenerating(true);
+  setGenerationStartTime(new Date());
+  
+  setGenerationStatus({
+    status: 'generating',
+    totalProgress: 0,
+    totalWordsGenerated: book.modules.reduce((sum, m) => sum + (m.status === 'completed' ? m.wordCount : 0), 0),
+    logMessage: '▶ Resuming generation...'
+  });
+  
+  try {
+    await bookService.generateAllModulesWithRecovery(book, session);
     
-    setGenerationStatus({
-      status: 'generating',
-      totalProgress: 0,
-      totalWordsGenerated: book.modules.reduce((sum, m) => sum + (m.status === 'completed' ? m.wordCount : 0), 0),
-      logMessage: '▶ Resuming generation...'
+    setGenerationStatus(prev => ({
+      ...prev,
+      status: 'completed',
+      totalProgress: 100,
+      logMessage: '✓ Generation complete!'
+    }));
+  } catch (error) {
+    console.error("Generation failed:", error);
+    const errorMessage = error instanceof Error ? error.message : 'Generation failed';
+    
+    setGenerationStatus(prev => ({
+      ...prev,
+      status: 'error',
+      logMessage: errorMessage
+    }));
+    
+    handleBookProgressUpdate(book.id, { 
+      status: 'error', 
+      error: errorMessage
     });
-    
-    try {
-      await bookService.generateAllModulesWithRecovery(book, session);
-      
-      setGenerationStatus(prev => ({
-        ...prev,
-        status: 'completed',
-        totalProgress: 100,
-        logMessage: '✓ Generation complete!'
-      }));
-    } catch (error) {
-      console.error("Generation failed:", error);
-      const errorMessage = error instanceof Error ? error.message : 'Generation failed';
-      
-      setGenerationStatus(prev => ({
-        ...prev,
-        status: 'error',
-        logMessage: errorMessage
-      }));
-      
-      handleBookProgressUpdate(book.id, { 
-        status: 'error', 
-        error: errorMessage
-      });
-    }
-  };
+  }
+};
 
   const handleRetryFailedModules = async (book: BookProject, session: BookSession): Promise<void> => {
     if (!isOnline) {
