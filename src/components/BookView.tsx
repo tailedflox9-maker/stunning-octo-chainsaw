@@ -11,7 +11,7 @@ import {
   FileText, Maximize2, Minimize2,
   List, Settings, Moon, ZoomIn, ZoomOut, BookOpen, 
   ChevronUp, RotateCcw, Palette, Hash, Activity, TrendingUp, Zap, Gauge,
-  Terminal, Eye, EyeOff, Search
+  Terminal, Eye, EyeOff, Search, CheckCircle2
 } from 'lucide-react';
 import { BookProject, BookSession } from '../types/book';
 import { bookService } from '../services/bookService';
@@ -257,6 +257,49 @@ function AIThinkingIndicator({ stage, progress = 0 }: { stage: AIThinkingStage; 
   );
 }
 
+// ============================================================================
+// NEW UI COMPONENTS INSPIRED BY USER'S CODE
+// ============================================================================
+const GradientProgressBar = ({ progress = 0, active = true }) => (
+    <div className="relative w-full h-2.5 bg-zinc-800/50 rounded-full overflow-hidden border border-zinc-700/50">
+      <div 
+        className="absolute inset-0 bg-gradient-to-r from-orange-500 via-yellow-400 to-orange-500 transition-all duration-700 ease-out"
+        style={{ 
+          width: `${progress}%`,
+          backgroundSize: '200% 100%',
+          animation: active ? 'gradient-flow 3s ease infinite' : 'none'
+        }}
+      />
+    </div>
+);
+
+const PixelAnimation = () => {
+  const [pixels, setPixels] = useState<any[]>([]);
+
+  useEffect(() => {
+    const colors = ['bg-orange-500', 'bg-yellow-500', 'bg-amber-600', 'bg-red-500', 'bg-zinc-700', 'bg-zinc-600'];
+    const generate = () => {
+      const newPixels = Array(70).fill(0).map((_, i) => ({
+        id: i,
+        color: colors[Math.floor(Math.random() * colors.length)],
+        opacity: Math.random() > 0.6 ? 'opacity-100' : 'opacity-30'
+      }));
+      setPixels(newPixels);
+    };
+    generate();
+    const interval = setInterval(generate, 200);
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <div className="flex flex-wrap gap-1.5 h-14">
+      {pixels.map(p => (
+        <div key={p.id} className={`w-1.5 h-1.5 rounded-sm ${p.color} ${p.opacity} transition-all duration-200`} />
+      ))}
+    </div>
+  );
+};
+
 // Embedded Progress Panel Component with NEW FEATURES (UPDATED)
 const EmbeddedProgressPanel = ({ 
   generationStatus, 
@@ -270,9 +313,8 @@ const EmbeddedProgressPanel = ({
   const [eventLog, setEventLog] = useState(() => logger.getLogs());
   const [showEventLog, setShowEventLog] = useState(false);
   const logContainerRef = useRef<HTMLDivElement>(null);
-  const streamBoxRef = useRef<HTMLDivElement>(null); // Ref for auto-scroll
+  const streamBoxRef = useRef<HTMLDivElement>(null);
 
-  // Effect for auto-scrolling the live stream box
   useEffect(() => {
     if (streamBoxRef.current && generationStatus.currentModule?.generatedText) {
       streamBoxRef.current.scrollTop = streamBoxRef.current.scrollHeight;
@@ -314,187 +356,63 @@ const EmbeddedProgressPanel = ({
   const overallProgress = (stats.completedModules / (stats.totalModules || 1)) * 100;
 
   return (
-    <div className="bg-[var(--color-card)] border border-[var(--color-border)] rounded-lg p-6 space-y-6 animate-fade-in-up">
-      {/* Header */}
-      <div>
+    <div className="bg-zinc-900/60 backdrop-blur-xl border border-zinc-800/50 rounded-xl overflow-hidden animate-fade-in-up">
+      <div className="p-6">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-blue-500/10 rounded-lg flex items-center justify-center">
-              <Loader2 className="w-6 h-6 text-blue-400 animate-spin" />
+            <Brain className="w-5 h-5 text-blue-400" />
+            <h3 className="text-lg font-semibold">Writing chapters...</h3>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="px-3 py-1 bg-blue-500/20 border border-blue-500/30 rounded-full text-xs font-semibold text-blue-300">
+              {stats.completedModules}/{stats.totalModules} Complete
             </div>
-            <div>
-              <h3 className="font-bold text-white text-lg">Generation In Progress</h3>
-              <p className="text-sm text-gray-400">
-                Module {stats.completedModules + 1} of {stats.totalModules}
-              </p>
+            <div className="text-sm font-mono text-zinc-400">{stats.totalWordsGenerated.toLocaleString()} words</div>
+          </div>
+        </div>
+        
+        <GradientProgressBar progress={overallProgress} active={generationStatus.status === 'generating'} />
+        
+        <div className="mt-5 mb-4"><PixelAnimation /></div>
+
+        {generationStatus.currentModule && generationStatus.currentModule.generatedText && (
+          <div className="bg-black/40 border border-zinc-800/50 rounded-lg p-4 mt-4">
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="font-semibold text-white flex items-center gap-2">
+                <Zap className="w-4 h-4 text-yellow-400" />
+                {generationStatus.currentModule.title}
+              </h4>
+              {generationStatus.currentModule.attempt > 1 && (
+                <div className="flex items-center gap-1.5 text-xs text-yellow-400 bg-yellow-500/10 px-2 py-1 rounded-md border border-yellow-500/20">
+                  <RefreshCw className="w-3 h-3" />
+                  <span>Attempt {generationStatus.currentModule.attempt}</span>
+                </div>
+              )}
             </div>
+            <div
+              ref={streamBoxRef}
+              className="text-sm text-zinc-300 leading-relaxed max-h-32 overflow-y-auto font-mono streaming-text-box"
+            >
+              {generationStatus.currentModule.generatedText}
+              <span className="inline-block w-2 h-4 bg-blue-400 animate-pulse ml-1" />
+            </div>
+          </div>
+        )}
+
+        <div className="mt-6 flex items-center justify-between">
+          <div className="flex items-center gap-2 text-sm text-zinc-500">
+            <Clock className="w-4 h-4 text-yellow-500" />
+            <span>{formatTime(stats.estimatedTimeRemaining)} remaining</span>
           </div>
           {onCancel && (
             <button 
               onClick={onCancel}
-              className="px-3 py-1.5 bg-red-500/20 hover:bg-red-500/30 border border-red-500/40 rounded-lg text-red-400 text-sm font-medium transition-all"
+              className="px-4 py-2 border border-zinc-700 hover:bg-zinc-800 rounded-lg text-sm font-medium transition-all"
             >
               Cancel
             </button>
           )}
         </div>
-
-        {/* Overall Progress Bar */}
-        <div className="mb-6">
-          <div className="flex items-center justify-between text-sm text-gray-400 mb-2">
-            <span>Overall Progress</span>
-            <span className="font-mono font-bold text-white">{Math.round(overallProgress)}%</span>
-          </div>
-          <div className="w-full bg-gray-800/50 rounded-full h-3 overflow-hidden border border-gray-700">
-            <div 
-              className="h-full bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 rounded-full transition-all duration-500 relative"
-              style={{ width: `${overallProgress}%` }}
-            >
-              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-pulse"></div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* NEW: AI Thinking Indicator - now driven by service */}
-      {generationStatus && generationStatus.currentModule && (
-        <AIThinkingIndicator 
-          stage={generationStatus.aiStage || 'analyzing'}
-          progress={generationStatus.currentModule.progress}
-        />
-      )}
-
-
-      {/* Current Module */}
-      {generationStatus.currentModule && generationStatus.currentModule.generatedText && (
-        <div className="bg-black/20 rounded-lg p-4 border border-[var(--color-border)]">
-          <div className="flex items-center justify-between mb-3">
-            <h4 className="font-semibold text-white flex items-center gap-2">
-              <Activity className="w-4 h-4 text-blue-400" />
-              {generationStatus.currentModule.title}
-            </h4>
-            {generationStatus.currentModule.attempt > 1 && (
-              <div className="flex items-center gap-1.5 text-xs text-yellow-400 bg-yellow-500/10 px-2 py-1 rounded-md border border-yellow-500/20">
-                <RefreshCw className="w-3 h-3" />
-                <span>Attempt {generationStatus.currentModule.attempt}</span>
-              </div>
-            )}
-          </div>
-          
-          <div
-            ref={streamBoxRef}
-            className="bg-[var(--color-bg)] rounded-lg p-3 max-h-24 overflow-y-auto border border-[var(--color-border)] text-xs text-gray-300 leading-relaxed font-mono streaming-text-box"
-          >
-            <Zap className="w-3 h-3 text-yellow-400 inline-block mr-2" />
-            {generationStatus.currentModule.generatedText}
-            <span className="inline-block w-1.5 h-3 bg-blue-400 animate-pulse ml-1"></span>
-          </div>
-        </div>
-      )}
-
-      {/* Statistics Grid with NEW Animated Word Counter */}
-      <div className="grid grid-cols-3 gap-3">
-        <div className="bg-black/20 rounded-lg p-3 border border-[var(--color-border)]">
-          <div className="flex items-center gap-2 mb-1">
-            <Check className="w-4 h-4 text-green-400" />
-            <span className="text-xs text-gray-400">Completed</span>
-          </div>
-          <div className="text-xl font-bold text-white font-mono">{stats.completedModules}</div>
-        </div>
-        
-        <div className="bg-black/20 rounded-lg p-3 border border-[var(--color-border)]">
-          <div className="flex items-center gap-2 mb-1">
-            <X className="w-4 h-4 text-red-400" />
-            <span className="text-xs text-gray-400">Failed</span>
-          </div>
-          <div className="text-xl font-bold text-white font-mono">{stats.failedModules}</div>
-        </div>
-        
-        {/* UPDATED: Animated Word Counter with streaming prop */}
-        <AnimatedWordCounter 
-          targetCount={stats.totalWordsGenerated}
-          duration={300}
-          label="Words"
-          isStreaming={generationStatus.status === 'generating'}
-        />
-        
-        <div className="bg-black/20 rounded-lg p-3 border border-[var(--color-border)]">
-          <div className="flex items-center gap-2 mb-1">
-            <Gauge className="w-4 h-4 text-purple-400" />
-            <span className="text-xs text-gray-400">WPM</span>
-          </div>
-          <div className="text-xl font-bold text-white font-mono">{stats.wordsPerMinute.toFixed(0)}</div>
-        </div>
-        
-        <div className="bg-black/20 rounded-lg p-3 border border-[var(--color-border)]">
-          <div className="flex items-center gap-2 mb-1">
-            <Clock className="w-4 h-4 text-orange-400" />
-            <span className="text-xs text-gray-400">Avg Time</span>
-          </div>
-          <div className="text-lg font-bold text-white font-mono">{formatTime(stats.averageTimePerModule)}</div>
-        </div>
-        
-        <div className="bg-black/20 rounded-lg p-3 border border-[var(--color-border)]">
-          <div className="flex items-center gap-2 mb-1">
-            <TrendingUp className="w-4 h-4 text-cyan-400" />
-            <span className="text-xs text-gray-400">Est. Time</span>
-          </div>
-          <div className="text-lg font-bold text-white font-mono">{formatTime(stats.estimatedTimeRemaining)}</div>
-        </div>
-      </div>
-
-      {/* System Log */}
-      <div className="bg-black/20 p-3 rounded-lg border border-[var(--color-border)]">
-        <div className="flex items-center justify-between mb-2">
-            <h4 className="text-xs font-semibold text-gray-400 flex items-center gap-2">
-                <Terminal className="w-3.5 h-3.5" />
-                SYSTEM LOG
-            </h4>
-            <div className="flex items-center gap-2">
-                <button
-                    onClick={() => setShowEventLog(!showEventLog)}
-                    className="p-1 hover:bg-white/10 rounded transition-colors"
-                    title={showEventLog ? 'Collapse log' : 'Expand log'}
-                >
-                    {showEventLog ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
-                </button>
-                <button
-                    onClick={handleDownloadLogs}
-                    className="p-1 hover:bg-white/10 rounded transition-colors"
-                    title="Download full log"
-                >
-                    <Download className="w-3 h-3 text-blue-400" />
-                </button>
-            </div>
-        </div>
-        
-        {showEventLog && (
-            <div ref={logContainerRef} className="max-h-[180px] overflow-y-auto space-y-2 text-xs font-mono bg-[var(--color-bg)] p-2 rounded-md border border-[var(--color-border)]">
-                {eventLog.length === 0 ? (
-                    <div className="text-gray-500 text-center py-4">No logs yet...</div>
-                ) : (
-                    eventLog.map(log => (
-                        <div key={log.id} className="flex gap-2 items-start">
-                            <span className="text-gray-500 shrink-0">{log.timestamp}</span>
-                            <span className={`${
-                                log.type === 'success' ? 'text-green-400' : 
-                                log.type === 'warn' ? 'text-yellow-400' :
-                                log.type === 'error' ? 'text-red-400' :
-                                'text-gray-300'
-                            }`}>
-                                {log.message}
-                            </span>
-                        </div>
-                    ))
-                )}
-            </div>
-        )}
-        
-        {!showEventLog && generationStatus.logMessage && (
-            <div className="text-xs text-gray-400 font-mono truncate">
-                {generationStatus.logMessage}
-            </div>
-        )}
       </div>
     </div>
   );
@@ -1354,16 +1272,6 @@ export function BookView({
                 </div>
               ) : (
                 <div className="space-y-6">
-                  <div className="bg-[var(--color-card)] border border-[var(--color-border)] rounded-lg p-6">
-                    <h3 className="text-lg font-semibold text-white mb-4">Book Details</h3>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-                      <div><span className="text-gray-400">Goal:</span><p className="font-medium">{currentBook.goal}</p></div>
-                      <div><span className="text-gray-400">Created:</span><p className="font-medium">{new Date(currentBook.createdAt).toLocaleDateString()}</p></div>
-                      <div><span className="text-gray-400">Language:</span><p className="font-medium">{currentBook.language === 'en' ? 'English' : 'Marathi'}</p></div>
-                      <div><span className="text-gray-400">Modules:</span><p className="font-medium">{currentBook.modules.length} / {currentBook.roadmap?.modules.length || '...'} completed</p></div>
-                    </div>
-                  </div>
-
                   {/* EMBEDDED PROGRESS PANEL */}
                   {currentBook.status === 'generating_content' && generationStatus && generationStats && (
                     <EmbeddedProgressPanel
@@ -1516,9 +1424,8 @@ export function BookView({
                   )}
 
                   {/* NEW: ASSEMBLY CARD / SUMMARY PANEL */}
-                  {areAllModulesDone && currentBook.status === 'roadmap_completed' && generationStats && (
+                  {areAllModulesDone && currentBook.status !== 'completed' && (
                     <div className="bg-[var(--color-card)] border border-green-500/30 rounded-lg p-6 space-y-6 animate-fade-in-up">
-                      {/* Header */}
                       <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-center sm:text-left">
                         <div className="flex items-center gap-4">
                           <div className="w-12 h-12 flex items-center justify-center bg-green-500/10 rounded-lg">
@@ -1533,28 +1440,6 @@ export function BookView({
                           <Download size={14} /> Download Logs
                         </button>
                       </div>
-
-                      {/* Final Stats */}
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                        <div className="bg-black/20 rounded-lg p-3 border border-[var(--color-border)] text-center">
-                          <div className="text-xs text-gray-400 mb-1">Completed</div>
-                          <div className="text-2xl font-bold text-green-400 font-mono">{generationStats.completedModules}</div>
-                        </div>
-                        <div className="bg-black/20 rounded-lg p-3 border border-[var(--color-border)] text-center">
-                          <div className="text-xs text-gray-400 mb-1">Failed</div>
-                          <div className="text-2xl font-bold text-red-400 font-mono">{generationStats.failedModules}</div>
-                        </div>
-                        <div className="bg-black/20 rounded-lg p-3 border border-[var(--color-border)] text-center">
-                          <div className="text-xs text-gray-400 mb-1">Total Words</div>
-                          <div className="text-2xl font-bold text-white font-mono">{generationStats.totalWordsGenerated.toLocaleString()}</div>
-                        </div>
-                        <div className="bg-black/20 rounded-lg p-3 border border-[var(--color-border)] text-center">
-                          <div className="text-xs text-gray-400 mb-1">Avg. Speed</div>
-                          <div className="text-2xl font-bold text-purple-400 font-mono">{generationStats.wordsPerMinute.toFixed(0)} WPM</div>
-                        </div>
-                      </div>
-
-                      {/* Action */}
                       <div>
                         <p className="text-center text-sm text-gray-400 mb-4">Ready to assemble the final book?</p>
                         <button onClick={handleStartAssembly} disabled={isGenerating} className="btn btn-primary w-full btn-lg">
@@ -1564,10 +1449,33 @@ export function BookView({
                       </div>
                     </div>
                   )}
+                  
+                  {/* COMPLETION CARD */}
+                  {currentBook.status === 'completed' && (
+                     <div className="bg-gradient-to-br from-emerald-500/10 to-green-500/5 border border-emerald-500/30 rounded-xl p-8 text-center animate-fade-in-up">
+                      <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500 to-green-500 flex items-center justify-center mx-auto mb-4 shadow-2xl shadow-emerald-500/50">
+                        <CheckCircle2 className="w-8 h-8 text-white" />
+                      </div>
+                      <h2 className="text-2xl font-bold mb-2">Book Generation Complete!</h2>
+                      <p className="text-zinc-400 mb-6">
+                        Your book "{currentBook.title}" is ready.
+                      </p>
+                      <div className="flex gap-3 justify-center">
+                        <button onClick={() => setDetailTab('read')} className="px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 rounded-xl text-white font-semibold flex items-center gap-2 shadow-lg shadow-blue-500/30 transition-all">
+                          <Eye className="w-4 h-4" />
+                          Read Book
+                        </button>
+                        <button onClick={() => bookService.downloadAsMarkdown(currentBook)} className="px-6 py-3 border border-zinc-700 hover:bg-zinc-800 rounded-xl font-semibold flex items-center gap-2 transition-all">
+                          <Download className="w-4 h-4" />
+                          Download
+                        </button>
+                      </div>
+                    </div>
+                  )}
 
                   {/* NEW: ASSEMBLING... PANEL */}
                   {currentBook.status === 'assembling' && (
-                    <div className="bg-[var(--color-card)] border-2 rounded-lg p-8 space-y-6 animate-assembling-glow">
+                    <div className="bg-zinc-900/60 backdrop-blur-xl border-2 rounded-lg p-8 space-y-6 animate-assembling-glow">
                       <div className="flex flex-col items-center text-center gap-4">
                         <div className="relative w-16 h-16">
                           <div className="absolute inset-0 bg-green-500/20 rounded-full animate-ping"></div>
@@ -1578,7 +1486,7 @@ export function BookView({
                         <div>
                           <h3 className="text-2xl font-bold text-white">Assembling Your Book</h3>
                           <p className="text-gray-400 mt-2 max-w-md mx-auto">
-                            Finalizing chapters, generating the table of contents, and preparing for download. This won't take long...
+                            Finalizing chapters and preparing for download...
                           </p>
                         </div>
                       </div>
@@ -1589,7 +1497,7 @@ export function BookView({
                   )}
 
                   {/* ROADMAP SECTION */}
-                  {currentBook.roadmap && (
+                  {currentBook.roadmap && currentBook.status !== 'completed' && currentBook.status !== 'generating_content' && (
                     <div className="bg-[var(--color-card)] border border-[var(--color-border)] rounded-lg p-6">
                       <div className="flex items-center gap-3 mb-6">
                         <ListChecks className="w-5 h-5 text-purple-400" />
@@ -1604,64 +1512,42 @@ export function BookView({
                           return (
                             <div 
                               key={module.id}
-                              className={`flex items-start gap-3 p-4 rounded-lg border transition-all ${
+                              className={`flex items-start gap-3 p-3 rounded-lg border transition-all ${
                                 isActive 
-                                  ? 'border-blue-500/50 bg-blue-500/5 shadow-lg'
+                                  ? 'bg-blue-500/10 border-blue-500/40'
                                   : completedModule?.status === 'completed'
-                                  ? 'border-green-500/30 bg-green-500/5'
+                                  ? 'bg-emerald-500/10 border-emerald-500/30'
                                   : completedModule?.status === 'error'
                                   ? 'border-red-500/30 bg-red-500/5'
-                                  : 'border-[var(--color-border)] hover:border-gray-600'
+                                  : 'bg-zinc-800/30 border-zinc-800/50'
                               }`}
                             >
-                              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold shrink-0 transition-all ${
+                              <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 transition-all ${
                                 completedModule?.status === 'completed'
-                                  ? 'bg-green-500 text-white'
+                                  ? 'bg-emerald-500 text-white'
                                   : completedModule?.status === 'error'
                                   ? 'bg-red-500 text-white'
                                   : isActive
                                   ? 'bg-blue-500 text-white animate-pulse'
-                                  : 'bg-[var(--color-border)] text-gray-400'
+                                  : 'bg-zinc-700 text-zinc-500'
                               }`}>
                                 {completedModule?.status === 'completed' ? (
-                                  <Check size={16} />
+                                  <Check size={12} />
                                 ) : completedModule?.status === 'error' ? (
-                                  <X size={16} />
+                                  <X size={12} />
                                 ) : isActive ? (
-                                  <Loader2 size={16} className="animate-spin" />
+                                  <Loader2 size={12} className="animate-spin" />
                                 ) : (
                                   index + 1
                                 )}
                               </div>
 
-                              <div className="flex-1 min-w-0">
-                                <h4 className="font-semibold text-white mb-1">{module.title}</h4>
-                                <p className="text-sm text-gray-400 mb-2">
-                                  {module.objectives.join(' • ')}
+                              <div className="flex-1 min-w-0 pt-0.5">
+                                <h4 className="font-medium text-sm truncate text-white">{module.title}</h4>
+                                <p className="text-xs text-zinc-500">
+                                  {module.estimatedTime}
                                 </p>
-                                <div className="flex items-center gap-3 text-xs text-gray-500">
-                                  <span className="flex items-center gap-1">
-                                    <Clock className="w-3 h-3" />
-                                    {module.estimatedTime}
-                                  </span>
-                                  {completedModule && completedModule.status === 'completed' && (
-                                    <span className="text-green-400 font-medium">
-                                      {completedModule.wordCount} words
-                                    </span>
-                                  )}
-                                  {completedModule && completedModule.status === 'error' && (
-                                    <span className="text-red-400 font-medium">
-                                      Failed
-                                    </span>
-                                  )}
-                                </div>
                               </div>
-
-                              {isActive && (
-                                <div className="text-blue-400 text-xs font-medium bg-blue-500/10 px-2 py-1 rounded border border-blue-500/20">
-                                  Generating...
-                                </div>
-                              )}
                             </div>
                           );
                         })}
@@ -1684,29 +1570,6 @@ export function BookView({
                           </button>
                         </div>
                       </div>
-                    </div>
-                  )}
-
-                  {/* PREVIEW CARD */}
-                  {currentBook.status === 'completed' && currentBook.finalBook && (
-                    <div className="bg-[var(--color-card)] border border-[var(--color-border)] rounded-lg p-6">
-                      <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-lg font-semibold text-white">Book Preview</h3>
-                      </div>
-                      <div className="bg-[var(--color-bg)] rounded-lg p-4 max-h-96 overflow-y-auto text-sm border border-[var(--color-border)]">
-                        <pre className="whitespace-pre-wrap font-mono text-gray-300">
-                          {currentBook.finalBook.substring(0, 2000)}...
-                        </pre>
-                      </div>
-                      <p className="text-xs text-gray-500 mt-2 flex items-center justify-between">
-                        <span>Showing first 2000 characters. Download or use Read Mode for the full book.</span>
-                        <button
-                          onClick={() => setDetailTab('read')}
-                          className="text-blue-400 hover:text-blue-300 font-medium"
-                        >
-                          Read Full Book →
-                        </button>
-                      </p>
                     </div>
                   )}
                 </div>
