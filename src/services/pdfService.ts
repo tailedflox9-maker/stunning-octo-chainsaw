@@ -1,13 +1,27 @@
-// src/services/pdfService.ts - PROFESSIONAL PDF WITH PDFMAKE
-import pdfMake from 'pdfmake/build/pdfmake';
-import pdfFonts from 'pdfmake/build/vfs_fonts';
+// src/services/pdfService.ts - SAFE VERSION WITH DYNAMIC IMPORTS
 import { BookProject } from '../types';
-import { marked } from 'marked';
-
-// Register fonts
-pdfMake.vfs = pdfFonts.pdfMake.vfs;
 
 let isGenerating = false;
+
+// Dynamic imports to prevent build issues
+let pdfMake: any = null;
+
+async function loadPdfMake() {
+  if (pdfMake) return pdfMake;
+  
+  try {
+    const pdfMakeModule = await import('pdfmake/build/pdfmake');
+    const pdfFontsModule = await import('pdfmake/build/vfs_fonts');
+    
+    pdfMake = pdfMakeModule.default;
+    pdfMake.vfs = pdfFontsModule.default.pdfMake.vfs;
+    
+    return pdfMake;
+  } catch (error) {
+    console.error('Failed to load pdfmake:', error);
+    throw new Error('PDF library could not be loaded. Please refresh the page and try again.');
+  }
+}
 
 interface PDFContent {
   text?: string;
@@ -26,7 +40,6 @@ class PdfMakeGenerator {
   private styles: any;
 
   constructor() {
-    // Define beautiful styles
     this.styles = {
       cover: {
         fontSize: 28,
@@ -98,9 +111,6 @@ class PdfMakeGenerator {
         italics: true,
         margin: [15, 10, 0, 10],
         color: '#505050'
-      },
-      hr: {
-        margin: [0, 10, 0, 10]
       }
     };
   }
@@ -131,7 +141,7 @@ class PdfMakeGenerator {
       const line = lines[i];
       const trimmed = line.trim();
 
-      // Handle code blocks
+      // Code blocks
       if (trimmed.startsWith('```')) {
         if (inCodeBlock) {
           if (codeLines.length > 0) {
@@ -168,7 +178,6 @@ class PdfMakeGenerator {
         continue;
       }
 
-      // Empty lines
       if (!trimmed) {
         flushList();
         continue;
@@ -252,7 +261,7 @@ class PdfMakeGenerator {
         }
         listItems.push(this.cleanText(trimmed.replace(/^\d+\.\s+/, '')));
       }
-      // Regular paragraph
+      // Paragraph
       else {
         flushList();
         const cleanedText = this.cleanText(trimmed);
@@ -268,7 +277,6 @@ class PdfMakeGenerator {
 
   private cleanText(text: string): string {
     return text
-      // Keep emojis and unicode
       .replace(/\*\*\*(.+?)\*\*\*/g, '$1')
       .replace(/\*\*(.+?)\*\*/g, '$1')
       .replace(/\*(.+?)\*/g, '$1')
@@ -296,7 +304,8 @@ class PdfMakeGenerator {
   public async generate(project: BookProject, onProgress: (progress: number) => void): Promise<void> {
     onProgress(10);
 
-    // Create cover page
+    const pdfMakeLib = await loadPdfMake();
+    
     const totalWords = project.modules.reduce((sum, m) => sum + m.wordCount, 0);
     const coverContent = this.createCoverPage(project.title, {
       words: totalWords,
@@ -309,14 +318,11 @@ class PdfMakeGenerator {
     });
     onProgress(30);
 
-    // Parse markdown content
     const mainContent = this.parseMarkdownToContent(project.finalBook);
     onProgress(70);
 
-    // Combine all content
     this.content = [...coverContent, ...mainContent];
 
-    // Define document
     const docDefinition: any = {
       content: this.content,
       styles: this.styles,
@@ -340,10 +346,9 @@ class PdfMakeGenerator {
 
     onProgress(85);
 
-    // Generate and download PDF
     return new Promise((resolve, reject) => {
       try {
-        const pdfDocGenerator = pdfMake.createPdf(docDefinition);
+        const pdfDocGenerator = pdfMakeLib.createPdf(docDefinition);
         
         const safeTitle = project.title
           .replace(/[^a-z0-9\s-]/gi, '')
