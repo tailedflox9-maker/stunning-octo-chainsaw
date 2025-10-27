@@ -1,4 +1,4 @@
-// src/services/pdfService.ts - AGGRESSIVE VFS DETECTION
+// src/services/pdfService.ts - FIXED WITH PAGE BREAKS & NO BLUE LINE
 import { BookProject } from '../types';
 
 let isGenerating = false;
@@ -22,7 +22,6 @@ async function loadPdfMake() {
     pdfMake = pdfMakeModule.default || pdfMakeModule;
     const fonts = pdfFontsModule.default || pdfFontsModule;
     
-    // Deep inspection of the fonts object
     console.log('📚 Font module structure:', {
       type: typeof fonts,
       keys: Object.keys(fonts || {}),
@@ -36,19 +35,13 @@ async function loadPdfMake() {
     // ULTRA AGGRESSIVE: Try EVERY possible way to get VFS
     let vfs = null;
     
-    // Method 1: Standard access
     if (fonts?.pdfMake?.vfs) {
       vfs = fonts.pdfMake.vfs;
       console.log('✓ Method 1: fonts.pdfMake.vfs');
-    }
-    // Method 2: Direct vfs
-    else if (fonts?.vfs) {
+    } else if (fonts?.vfs) {
       vfs = fonts.vfs;
       console.log('✓ Method 2: fonts.vfs');
-    }
-    // Method 3: Check if fonts itself has font files
-    else if (typeof fonts === 'object' && fonts !== null) {
-      // Look for any property that looks like a font file
+    } else if (typeof fonts === 'object' && fonts !== null) {
       const possibleVfs: any = {};
       for (const key in fonts) {
         if (key.includes('.ttf') || key.includes('Roboto')) {
@@ -60,17 +53,17 @@ async function loadPdfMake() {
         console.log('✓ Method 3: Extracted VFS from fonts object');
       }
     }
-    // Method 4: Try pdfFontsModule directly
+    
     if (!vfs && pdfFontsModule?.pdfMake?.vfs) {
       vfs = pdfFontsModule.pdfMake.vfs;
       console.log('✓ Method 4: pdfFontsModule.pdfMake.vfs');
     }
-    // Method 5: Check default export
+    
     if (!vfs && pdfFontsModule?.default?.pdfMake?.vfs) {
       vfs = pdfFontsModule.default.pdfMake.vfs;
       console.log('✓ Method 5: pdfFontsModule.default.pdfMake.vfs');
     }
-    // Method 6: Look for 'pdfMake' property anywhere
+    
     if (!vfs && typeof fonts === 'object') {
       const findVfs = (obj: any, depth = 0): any => {
         if (depth > 3) return null;
@@ -94,7 +87,6 @@ async function loadPdfMake() {
     
     pdfMake.vfs = vfs;
     
-    // Verify VFS has content
     const vfsKeys = Object.keys(vfs);
     if (vfsKeys.length === 0) {
       console.error('❌ VFS is empty');
@@ -103,7 +95,6 @@ async function loadPdfMake() {
     
     console.log('✓ VFS loaded with', vfsKeys.length, 'files:', vfsKeys.slice(0, 5).join(', '));
     
-    // Set up font definitions
     pdfMake.fonts = {
       Roboto: {
         normal: 'Roboto-Regular.ttf',
@@ -149,6 +140,7 @@ class PremiumPdfGenerator {
   private styles: any;
   private tocItems: { title: string; level: number }[] = [];
   private hasEmojis = false;
+  private lastWasModule = false;
 
   constructor() {
     this.styles = {
@@ -159,6 +151,7 @@ class PremiumPdfGenerator {
       tocH1: { fontSize: 13, bold: true, margin: [0, 12, 0, 6], color: '#2a2a2a' },
       tocH2: { fontSize: 11, margin: [20, 6, 0, 4], color: '#4a5568' },
       h1: { fontSize: 26, bold: true, margin: [0, 30, 0, 15], color: '#1a1a1a' },
+      h1Module: { fontSize: 26, bold: true, margin: [0, 0, 0, 15], color: '#1a1a1a' }, // No top margin for modules (they have page break)
       h2: { fontSize: 19, bold: true, margin: [0, 24, 0, 12], color: '#2a2a2a' },
       h3: { fontSize: 16, bold: true, margin: [0, 18, 0, 10], color: '#333333' },
       h4: { fontSize: 14, bold: true, margin: [0, 15, 0, 8], color: '#444444' },
@@ -212,29 +205,47 @@ class PremiumPdfGenerator {
         continue;
       }
 
+      // Check if this is a module heading (starts with "Module")
+      const isModuleHeading = trimmed.startsWith('# ') && 
+                              this.cleanText(trimmed.substring(2)).toLowerCase().startsWith('module');
+
       if (trimmed.startsWith('# ')) {
         flushParagraph();
         const text = this.cleanText(trimmed.substring(2));
         this.tocItems.push({ title: text, level: 1 });
-        content.push({ text, style: 'h1' });
+        
+        // Add page break BEFORE module headings
+        if (isModuleHeading) {
+          content.push({ text: '', pageBreak: 'before' });
+          content.push({ text, style: 'h1Module' });
+          this.lastWasModule = true;
+        } else {
+          content.push({ text, style: 'h1' });
+          this.lastWasModule = false;
+        }
       } else if (trimmed.startsWith('## ')) {
         flushParagraph();
         const text = this.cleanText(trimmed.substring(3));
         this.tocItems.push({ title: text, level: 2 });
         content.push({ text, style: 'h2' });
+        this.lastWasModule = false;
       } else if (trimmed.startsWith('### ')) {
         flushParagraph();
         content.push({ text: this.cleanText(trimmed.substring(4)), style: 'h3' });
+        this.lastWasModule = false;
       } else if (trimmed.startsWith('#### ')) {
         flushParagraph();
         content.push({ text: this.cleanText(trimmed.substring(5)), style: 'h4' });
+        this.lastWasModule = false;
       } else if (trimmed.match(/^[-*+]\s+/)) {
         flushParagraph();
         content.push({ text: '• ' + this.cleanText(trimmed.replace(/^[-*+]\s+/, '')), style: 'listItem' });
+        this.lastWasModule = false;
       } else if (trimmed.match(/^\d+\.\s+/)) {
         flushParagraph();
         const num = trimmed.match(/^(\d+)\./)?.[1] || '';
         content.push({ text: num + '. ' + this.cleanText(trimmed.replace(/^\d+\.\s+/, '')), style: 'listItem' });
+        this.lastWasModule = false;
       } else {
         const cleaned = this.cleanText(trimmed);
         if (cleaned) paragraphBuffer.push(cleaned);
@@ -257,9 +268,23 @@ class PremiumPdfGenerator {
 
   private createCoverPage(title: string, metadata: { words: number; modules: number; date: string }): PDFContent[] {
     return [
-      { canvas: [{ type: 'rect', x: 180, y: 0, w: 155, h: 5, color: '#2563eb' }], margin: [0, 100, 0, 0] },
-      { text: title, style: 'coverTitle' },
-      { canvas: [{ type: 'line', x1: 120, y1: 0, x2: 395, y2: 0, lineWidth: 1, lineColor: '#cbd5e0' }], margin: [0, 20, 0, 20] },
+      // REMOVED: Blue decorative bar
+      // Simple elegant cover without the blue line
+      { text: title, style: 'coverTitle', margin: [0, 200, 0, 25] },
+      
+      // Divider (kept but subtle)
+      {
+        canvas: [{
+          type: 'line',
+          x1: 120, y1: 0,
+          x2: 395, y2: 0,
+          lineWidth: 0.5,
+          lineColor: '#cbd5e0'
+        }],
+        margin: [0, 20, 0, 20]
+      },
+      
+      // Metadata
       {
         columns: [
           { width: '*', text: '' },
@@ -274,6 +299,8 @@ class PremiumPdfGenerator {
           { width: '*', text: '' }
         ]
       },
+      
+      // Branding
       { text: 'Generated by Pustakam AI', style: 'coverBrand' },
       { text: '', pageBreak: 'after' }
     ];
