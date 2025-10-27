@@ -1,4 +1,4 @@
-// src/utils/logger.ts
+// src/utils/logger.ts - UPDATED FOR BETTER PROMPT LOGGING
 interface LogEntry {
   timestamp: Date;
   level: 'info' | 'warn' | 'error' | 'debug' | 'api';
@@ -8,7 +8,7 @@ interface LogEntry {
   apiDetails?: {
     provider?: string;
     model?: string;
-    prompt?: string; // Added prompt field
+    prompt?: string; // This will hold the full prompt
     promptLength?: number;
     responseLength?: number;
     duration?: number;
@@ -17,40 +17,20 @@ interface LogEntry {
 
 class ConsoleLogger {
   private logs: LogEntry[] = [];
-  private maxLogs = 500; // Increased for detailed logging
+  private maxLogs = 500;
   private sessionStartTime = new Date();
+  private listeners: Array<(logs: any[]) => void> = [];
 
   private addLog(level: LogEntry['level'], message: string, data?: any, module?: string, apiDetails?: any) {
-    const entry: LogEntry = {
-      timestamp: new Date(),
-      level,
-      message,
-      data,
-      module,
-      apiDetails
-    };
-    
+    const entry: LogEntry = { timestamp: new Date(), level, message, data, module, apiDetails };
     this.logs.unshift(entry);
     if (this.logs.length > this.maxLogs) {
       this.logs = this.logs.slice(0, this.maxLogs);
     }
-
-    // Enhanced console logging with colors
-    const logMethod = console[level === 'api' ? 'log' : level] || console.log;
-    const prefix = `[${level.toUpperCase()}]${module ? ` [${module}]` : ''}`;
-    
-    if (data || apiDetails) {
-      logMethod(prefix, message, { data, apiDetails });
-    } else {
-      logMethod(prefix, message);
-    }
-
     this.notifyListeners();
   }
 
-  private listeners: Array<(logs: LogEntry[]) => void> = [];
-
-  subscribe(listener: (logs: LogEntry[]) => void) {
+  subscribe(listener: (logs: any[]) => void) {
     this.listeners.push(listener);
     return () => {
       this.listeners = this.listeners.filter(l => l !== listener);
@@ -58,38 +38,20 @@ class ConsoleLogger {
   }
 
   private notifyListeners() {
-    this.listeners.forEach(listener => listener([...this.logs]));
+    this.listeners.forEach(listener => listener([...this.logs.map(log => ({
+        id: log.timestamp.getTime(),
+        timestamp: log.timestamp.toLocaleTimeString(),
+        message: log.message,
+        type: log.level
+    }))]));
   }
 
-  info(message: string, data?: any, module?: string) {
-    this.addLog('info', message, data, module);
-  }
-
-  warn(message: string, data?: any, module?: string) {
-    this.addLog('warn', message, data, module);
-  }
-
-  error(message: string, data?: any, module?: string) {
-    this.addLog('error', message, data, module);
-  }
-
-  debug(message: string, data?: any, module?: string) {
-    this.addLog('debug', message, data, module);
-  }
-
-  api(message: string, apiDetails: any, module?: string) {
-    this.addLog('api', message, undefined, module, apiDetails);
-  }
-
-  getLogs() {
-    return [...this.logs];
-  }
-
-  clear() {
-    this.logs = [];
-    this.sessionStartTime = new Date();
-    this.notifyListeners();
-  }
+  info(message: string, data?: any, module?: string) { this.addLog('info', message, data, module); }
+  warn(message: string, data?: any, module?: string) { this.addLog('warn', message, data, module); }
+  error(message: string, data?: any, module?: string) { this.addLog('error', message, data, module); }
+  debug(message: string, data?: any, module?: string) { this.addLog('debug', message, data, module); }
+  api(message: string, apiDetails: any, module?: string) { this.addLog('api', message, undefined, module, apiDetails); }
+  getLogs() { return [...this.logs]; }
 
   exportLogs(): string {
     const header = [
@@ -98,7 +60,6 @@ class ConsoleLogger {
       '='.repeat(100),
       `Export Date: ${new Date().toISOString()}`,
       `Session Started: ${this.sessionStartTime.toISOString()}`,
-      `Session Duration: ${Math.floor((Date.now() - this.sessionStartTime.getTime()) / 1000 / 60)} minutes`,
       `Total Log Entries: ${this.logs.length}`,
       '='.repeat(100),
       ''
@@ -108,32 +69,32 @@ class ConsoleLogger {
       const timestamp = log.timestamp.toISOString();
       const module = log.module ? `[${log.module}]` : '';
       const level = `[${log.level.toUpperCase()}]`;
-      
       let entry = `${timestamp} ${level} ${module} ${log.message}`;
-      
+
       if (log.apiDetails) {
         entry += `\n  API Details:`;
-        entry += `\n    Provider: ${log.apiDetails.provider || 'N/A'}`;
-        entry += `\n    Model: ${log.apiDetails.model || 'N/A'}`;
-        entry += `\n    Prompt Length: ${log.apiDetails.promptLength || 0} chars`;
-        entry += `\n    Response Length: ${log.apiDetails.responseLength || 0} chars`;
-        entry += `\n    Duration: ${log.apiDetails.duration || 0}ms`;
-
-        // =======================================================
-        //  THIS BLOCK INCLUDES THE FULL PROMPT IN THE LOG FILE
-        // =======================================================
+        entry += `\n    - Provider: ${log.apiDetails.provider || 'N/A'}`;
+        entry += `\n    - Model: ${log.apiDetails.model || 'N/A'}`;
+        if (log.apiDetails.promptLength) entry += `\n    - Prompt Length: ${log.apiDetails.promptLength} chars`;
+        if (log.apiDetails.responseLength) entry += `\n    - Response Length: ${log.apiDetails.responseLength} chars`;
+        if (log.apiDetails.duration) entry += `\n    - Duration: ${log.apiDetails.duration}ms`;
+        
+        // <<< --- THIS BLOCK INCLUDES THE FULL PROMPT IN THE LOG FILE --- >>>
         if (log.apiDetails.prompt) {
-          entry += `\n\n  --- PROMPT SENT TO AI ---\n${log.apiDetails.prompt}\n  --- END OF PROMPT ---\n`;
+          entry += `\n\n  --- PROMPT SENT TO AI ---\n${'-'.repeat(80)}\n${log.apiDetails.prompt}\n${'-'.repeat(80)}\n  --- END OF PROMPT ---\n`;
         }
-        // =======================================================
       }
       
       if (log.data) {
-        entry += `\n  Data: ${JSON.stringify(log.data, null, 2)}`;
+        try {
+          entry += `\n  Data: ${JSON.stringify(log.data, null, 2)}`;
+        } catch (e) {
+          entry += `\n  Data: (Circular reference, not shown)`;
+        }
       }
       
       return entry;
-    }).reverse().join('\n\n' + '-'.repeat(100) + '\n\n'); // Added separator for readability
+    }).reverse().join('\n\n' + '-'.repeat(100) + '\n\n');
 
     return header + '\n' + logEntries;
   }
