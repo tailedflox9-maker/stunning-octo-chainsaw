@@ -1,4 +1,4 @@
-// src/services/pdfService.ts - FINAL WORKING VERSION
+// src/services/pdfService.ts - AGGRESSIVE VFS DETECTION
 import { BookProject } from '../types';
 
 let isGenerating = false;
@@ -22,33 +22,88 @@ async function loadPdfMake() {
     pdfMake = pdfMakeModule.default || pdfMakeModule;
     const fonts = pdfFontsModule.default || pdfFontsModule;
     
+    // Deep inspection of the fonts object
     console.log('📚 Font module structure:', {
+      type: typeof fonts,
+      keys: Object.keys(fonts || {}),
       hasPdfMake: !!fonts?.pdfMake,
       hasVfs: !!fonts?.vfs,
-      directVfs: !!fonts?.pdfMake?.vfs
+      directVfs: !!fonts?.pdfMake?.vfs,
+      isFunction: typeof fonts === 'function',
+      constructor: fonts?.constructor?.name
     });
     
-    // Try all access patterns
+    // ULTRA AGGRESSIVE: Try EVERY possible way to get VFS
+    let vfs = null;
+    
+    // Method 1: Standard access
     if (fonts?.pdfMake?.vfs) {
-      pdfMake.vfs = fonts.pdfMake.vfs;
-      console.log('✓ Loaded fonts via: fonts.pdfMake.vfs');
-    } else if (fonts?.vfs) {
-      pdfMake.vfs = fonts.vfs;
-      console.log('✓ Loaded fonts via: fonts.vfs');
-    } else {
-      console.error('❌ No VFS found in fonts module');
+      vfs = fonts.pdfMake.vfs;
+      console.log('✓ Method 1: fonts.pdfMake.vfs');
+    }
+    // Method 2: Direct vfs
+    else if (fonts?.vfs) {
+      vfs = fonts.vfs;
+      console.log('✓ Method 2: fonts.vfs');
+    }
+    // Method 3: Check if fonts itself has font files
+    else if (typeof fonts === 'object' && fonts !== null) {
+      // Look for any property that looks like a font file
+      const possibleVfs: any = {};
+      for (const key in fonts) {
+        if (key.includes('.ttf') || key.includes('Roboto')) {
+          possibleVfs[key] = fonts[key];
+        }
+      }
+      if (Object.keys(possibleVfs).length > 0) {
+        vfs = possibleVfs;
+        console.log('✓ Method 3: Extracted VFS from fonts object');
+      }
+    }
+    // Method 4: Try pdfFontsModule directly
+    if (!vfs && pdfFontsModule?.pdfMake?.vfs) {
+      vfs = pdfFontsModule.pdfMake.vfs;
+      console.log('✓ Method 4: pdfFontsModule.pdfMake.vfs');
+    }
+    // Method 5: Check default export
+    if (!vfs && pdfFontsModule?.default?.pdfMake?.vfs) {
+      vfs = pdfFontsModule.default.pdfMake.vfs;
+      console.log('✓ Method 5: pdfFontsModule.default.pdfMake.vfs');
+    }
+    // Method 6: Look for 'pdfMake' property anywhere
+    if (!vfs && typeof fonts === 'object') {
+      const findVfs = (obj: any, depth = 0): any => {
+        if (depth > 3) return null;
+        if (obj?.vfs && typeof obj.vfs === 'object') return obj.vfs;
+        if (typeof obj !== 'object' || obj === null) return null;
+        for (const key in obj) {
+          const result = findVfs(obj[key], depth + 1);
+          if (result) return result;
+        }
+        return null;
+      };
+      vfs = findVfs(fonts);
+      if (vfs) console.log('✓ Method 6: Deep search found VFS');
+    }
+    
+    if (!vfs) {
+      console.error('❌ ALL VFS detection methods failed');
+      console.error('Full fonts object:', fonts);
       throw new Error('FONT_VFS_NOT_FOUND');
     }
     
+    pdfMake.vfs = vfs;
+    
     // Verify VFS has content
-    if (!pdfMake.vfs || Object.keys(pdfMake.vfs).length === 0) {
+    const vfsKeys = Object.keys(vfs);
+    if (vfsKeys.length === 0) {
       console.error('❌ VFS is empty');
       throw new Error('VFS_EMPTY');
     }
     
-    console.log('✓ VFS loaded with', Object.keys(pdfMake.vfs).length, 'files');
+    console.log('✓ VFS loaded with', vfsKeys.length, 'files:', vfsKeys.slice(0, 5).join(', '));
     
-    // CRITICAL FIX: Override default fonts to use only what's available
+    // Set up font definitions
     pdfMake.fonts = {
       Roboto: {
         normal: 'Roboto-Regular.ttf',
