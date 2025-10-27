@@ -251,7 +251,10 @@ const EmbeddedProgressPanel = ({
   onResume?: () => void;
 }) => {
   const streamBoxRef = useRef<HTMLDivElement>(null);
+  
+  // FIX: Check if paused OR if status is 'paused'
   const isPaused = generationStatus.status === 'paused';
+  const isGenerating = generationStatus.status === 'generating';
 
   useEffect(() => {
     if (streamBoxRef.current && generationStatus.currentModule?.generatedText) {
@@ -305,7 +308,7 @@ const EmbeddedProgressPanel = ({
         <div className="mb-4">
           <GradientProgressBar
             progress={overallProgress}
-            active={generationStatus.status === 'generating'}
+            active={isGenerating}
           />
         </div>
 
@@ -327,7 +330,7 @@ const EmbeddedProgressPanel = ({
         )}
 
         {/* Current Module Status (only when generating) */}
-        {!isPaused && generationStatus.currentModule && (
+        {isGenerating && generationStatus.currentModule && (
           <>
             <div className="mt-5 mb-4">
               <PixelAnimation />
@@ -375,8 +378,8 @@ const EmbeddedProgressPanel = ({
 
             {/* Right side - Action buttons */}
             <div className="flex items-center gap-3">
-              {/* Cancel Button - Always show when generating or paused */}
-              {onCancel && (
+              {/* FIX: Show cancel button when generating OR paused */}
+              {(isGenerating || isPaused) && onCancel && (
                 <button
                   onClick={onCancel}
                   className="px-4 py-2 border border-zinc-700 hover:bg-zinc-800 rounded-lg text-sm font-medium transition-all hover:border-red-500/50 hover:text-red-400"
@@ -387,7 +390,7 @@ const EmbeddedProgressPanel = ({
                 </button>
               )}
 
-              {/* Pause/Resume Toggle - ALWAYS VISIBLE */}
+              {/* FIX: Show pause button when generating, resume when paused */}
               {isPaused ? (
                 onResume && (
                   <button
@@ -399,17 +402,15 @@ const EmbeddedProgressPanel = ({
                     Resume Generation
                   </button>
                 )
-              ) : (
-                onPause && (
-                  <button
-                    onClick={onPause}
-                    className="px-5 py-2.5 bg-yellow-600 hover:bg-yellow-700 rounded-lg text-white font-semibold transition-all shadow-lg hover:shadow-yellow-500/30 flex items-center gap-2"
-                    title="Pause and save progress"
-                  >
-                    <Pause className="w-4 h-4" />
-                    Pause
-                  </button>
-                )
+              ) : isGenerating && onPause && (
+                <button
+                  onClick={onPause}
+                  className="px-5 py-2.5 bg-yellow-600 hover:bg-yellow-700 rounded-lg text-white font-semibold transition-all shadow-lg hover:shadow-yellow-500/30 flex items-center gap-2"
+                  title="Pause and save progress"
+                >
+                  <Pause className="w-4 h-4" />
+                  Pause
+                </button>
               )}
             </div>
           </div>
