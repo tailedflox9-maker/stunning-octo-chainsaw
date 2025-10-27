@@ -1,5 +1,5 @@
 // src/App.tsx - COMPLETE WITH PAUSE/RESUME
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Analytics } from '@vercel/analytics/react';
 import { Sidebar } from './components/Sidebar';
 import { InstallPrompt } from './components/InstallPrompt';
@@ -44,19 +44,33 @@ function App() {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [showOfflineMessage, setShowOfflineMessage] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
-
   const [generationStatus, setGenerationStatus] = useState<GenerationStatus>({
     status: 'idle',
     totalProgress: 0,
     totalWordsGenerated: 0,
   });
-  const [isGenerating, setIsGenerating] = useState(false);
   const [generationStartTime, setGenerationStartTime] = useState<Date>(new Date());
 
   const { isInstallable, isInstalled, installApp, dismissInstallPrompt } = usePWA();
 
-  const currentBook = currentBookId ? books.find(b => b.id === currentBookId) : null;
-  const totalWordsGenerated = currentBook?.modules.reduce((sum, m) => sum + (m.status === 'completed' ? m.wordCount : 0), 0) || 0;
+  const currentBook = useMemo(() => 
+    currentBookId ? books.find(b => b.id === currentBookId) : null,
+    [currentBookId, books]
+  );
+
+  // ✅ DERIVED isGenerating STATE — NO MORE MANUAL FLAGS
+  const isGenerating = useMemo(() => {
+    if (!currentBook) return false;
+    return (
+      currentBook.status === 'generating_content' ||
+      generationStatus.status === 'generating'
+    );
+  }, [currentBook?.status, generationStatus.status]);
+
+  const totalWordsGenerated = currentBook?.modules.reduce((sum, m) => 
+    sum + (m.status === 'completed' ? m.wordCount : 0), 0
+  ) || 0;
+
   const generationStats = useGenerationStats(
     currentBook?.roadmap?.totalModules || 0,
     currentBook?.modules.filter(m => m.status === 'completed').length || 0,
@@ -105,14 +119,6 @@ function App() {
         ...status,
         totalWordsGenerated: status.totalWordsGenerated || prevStatus.totalWordsGenerated,
       }));
-      
-      if (status.status === 'completed' || status.status === 'error') {
-        setTimeout(() => {
-          setIsGenerating(false);
-        }, 5000);
-      } else if (status.status === 'paused') {
-        setIsGenerating(false);
-      }
     });
   }, [settings]);
 
@@ -246,7 +252,6 @@ function App() {
     }
 
     const initialWords = book.modules.reduce((sum, m) => sum + (m.status === 'completed' ? m.wordCount : 0), 0);
-    setIsGenerating(true);
     setGenerationStartTime(new Date());
     setGenerationStatus({
       status: 'generating',
@@ -285,12 +290,10 @@ function App() {
 
   const handlePauseGeneration = (bookId: string) => {
     bookService.pauseGeneration(bookId);
-    setIsGenerating(false);
   };
 
   const handleResumeGeneration = async (book: BookProject, session: BookSession) => {
     bookService.resumeGeneration(book.id);
-    setIsGenerating(true);
     setGenerationStartTime(new Date());
     
     setGenerationStatus({
@@ -348,7 +351,6 @@ function App() {
     if (!shouldRetry) return;
 
     const initialWords = book.modules.reduce((sum, m) => sum + (m.status === 'completed' ? m.wordCount : 0), 0);
-    setIsGenerating(true);
     setGenerationStartTime(new Date());
     setGenerationStatus({
       status: 'generating',
