@@ -1,4 +1,4 @@
-// src/App.tsx (Corrected to fix pause/resume bug)
+// src/App.tsx - COMPLETE WITH PAUSE/RESUME
 import React, { useState, useEffect } from 'react';
 import { Analytics } from '@vercel/analytics/react';
 import { Sidebar } from './components/Sidebar';
@@ -25,7 +25,7 @@ interface GenerationStatus {
     generatedText?: string;
   };
   totalProgress: number;
-  status: 'idle' | 'generating' | 'completed' | 'error';
+  status: 'idle' | 'generating' | 'completed' | 'error' | 'paused';
   logMessage?: string;
   totalWordsGenerated?: number;
 }
@@ -110,6 +110,8 @@ function App() {
         setTimeout(() => {
           setIsGenerating(false);
         }, 5000);
+      } else if (status.status === 'paused') {
+        setIsGenerating(false);
       }
     });
   }, [settings]);
@@ -222,10 +224,9 @@ function App() {
 
     const hasCheckpoint = bookService.hasCheckpoint(book.id);
     const checkpointInfo = bookService.getCheckpointInfo(book.id);
-    let bookToGenerate = { ...book }; // Create a mutable copy
 
     if (hasCheckpoint && checkpointInfo) {
-      const message = `Found previous progress:\n\n` +
+      const message = `Found previous progress (saved ${checkpointInfo.lastSaved}):\n\n` +
         `✓ ${checkpointInfo.completed} module(s) completed\n` +
         `✗ ${checkpointInfo.failed} module(s) failed\n\n` +
         `Do you want to:\n` +
@@ -236,14 +237,15 @@ function App() {
       
       if (!shouldResume) {
         localStorage.removeItem(`checkpoint_${book.id}`);
-        // **FIX:** Create a new book object with cleared modules
-        bookToGenerate = { ...book, modules: [], status: 'generating_content', progress: 15 };
-        // Update the state with this new object
-        handleBookProgressUpdate(book.id, { modules: [], status: 'generating_content', progress: 15 });
+        handleBookProgressUpdate(book.id, { 
+          modules: [],
+          status: 'generating_content',
+          progress: 15
+        });
       }
     }
 
-    const initialWords = bookToGenerate.modules.reduce((sum, m) => sum + (m.status === 'completed' ? m.wordCount : 0), 0);
+    const initialWords = book.modules.reduce((sum, m) => sum + (m.status === 'completed' ? m.wordCount : 0), 0);
     setIsGenerating(true);
     setGenerationStartTime(new Date());
     setGenerationStatus({
@@ -256,8 +258,7 @@ function App() {
     handleBookProgressUpdate(book.id, { status: 'generating_content' });
 
     try {
-      // **FIX:** Pass the potentially modified bookToGenerate object
-      await bookService.generateAllModulesWithRecovery(bookToGenerate, session);
+      await bookService.generateAllModulesWithRecovery(book, session);
       
       setGenerationStatus(prev => ({
         ...prev,
@@ -267,6 +268,49 @@ function App() {
       }));
     } catch (error) {
       console.error("Module generation failed:", error);
+      const errorMessage = error instanceof Error ? error.message : 'Generation failed';
+      
+      setGenerationStatus(prev => ({
+        ...prev,
+        status: 'error',
+        logMessage: errorMessage
+      }));
+      
+      handleBookProgressUpdate(book.id, { 
+        status: 'error', 
+        error: errorMessage
+      });
+    }
+  };
+
+  const handlePauseGeneration = (bookId: string) => {
+    bookService.pauseGeneration(bookId);
+    setIsGenerating(false);
+  };
+
+  const handleResumeGeneration = async (book: BookProject, session: BookSession) => {
+    bookService.resumeGeneration(book.id);
+    setIsGenerating(true);
+    setGenerationStartTime(new Date());
+    
+    setGenerationStatus({
+      status: 'generating',
+      totalProgress: 0,
+      totalWordsGenerated: book.modules.reduce((sum, m) => sum + (m.status === 'completed' ? m.wordCount : 0), 0),
+      logMessage: '▶ Resuming generation...'
+    });
+    
+    try {
+      await bookService.generateAllModulesWithRecovery(book, session);
+      
+      setGenerationStatus(prev => ({
+        ...prev,
+        status: 'completed',
+        totalProgress: 100,
+        logMessage: '✓ Generation complete!'
+      }));
+    } catch (error) {
+      console.error("Generation failed:", error);
       const errorMessage = error instanceof Error ? error.message : 'Generation failed';
       
       setGenerationStatus(prev => ({
@@ -493,6 +537,9 @@ function App() {
           isMobile={isMobile}
           generationStatus={generationStatus}
           generationStats={generationStats}
+          onPauseGeneration={handlePauseGeneration}
+          onResumeGeneration={handleResumeGeneration}
+          isGenerating={isGenerating}
         />
       </div>
 
