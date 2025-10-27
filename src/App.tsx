@@ -1,4 +1,4 @@
-// src/App.tsx (Updated - Remove GenerationProgressPanel popup)
+// src/App.tsx (Corrected to fix pause/resume bug)
 import React, { useState, useEffect } from 'react';
 import { Analytics } from '@vercel/analytics/react';
 import { Sidebar } from './components/Sidebar';
@@ -222,6 +222,7 @@ function App() {
 
     const hasCheckpoint = bookService.hasCheckpoint(book.id);
     const checkpointInfo = bookService.getCheckpointInfo(book.id);
+    let bookToGenerate = { ...book }; // Create a mutable copy
 
     if (hasCheckpoint && checkpointInfo) {
       const message = `Found previous progress:\n\n` +
@@ -235,15 +236,14 @@ function App() {
       
       if (!shouldResume) {
         localStorage.removeItem(`checkpoint_${book.id}`);
-        handleBookProgressUpdate(book.id, { 
-          modules: [],
-          status: 'generating_content',
-          progress: 15
-        });
+        // **FIX:** Create a new book object with cleared modules
+        bookToGenerate = { ...book, modules: [], status: 'generating_content', progress: 15 };
+        // Update the state with this new object
+        handleBookProgressUpdate(book.id, { modules: [], status: 'generating_content', progress: 15 });
       }
     }
 
-    const initialWords = book.modules.reduce((sum, m) => sum + (m.status === 'completed' ? m.wordCount : 0), 0);
+    const initialWords = bookToGenerate.modules.reduce((sum, m) => sum + (m.status === 'completed' ? m.wordCount : 0), 0);
     setIsGenerating(true);
     setGenerationStartTime(new Date());
     setGenerationStatus({
@@ -256,7 +256,8 @@ function App() {
     handleBookProgressUpdate(book.id, { status: 'generating_content' });
 
     try {
-      await bookService.generateAllModulesWithRecovery(book, session);
+      // **FIX:** Pass the potentially modified bookToGenerate object
+      await bookService.generateAllModulesWithRecovery(bookToGenerate, session);
       
       setGenerationStatus(prev => ({
         ...prev,
