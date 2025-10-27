@@ -1,16 +1,10 @@
-// src/services/pdfService.ts - RELIABLE PDF GENERATION
+// src/services/pdfService.ts - BEAUTIFUL READABLE PDF
 import jsPDF from 'jspdf';
 import { BookProject } from '../types';
 
 let isGenerating = false;
 
-interface TextBlock {
-  type: 'title' | 'heading1' | 'heading2' | 'heading3' | 'paragraph' | 'code' | 'list-item';
-  content: string;
-  level?: number;
-}
-
-class SimplePdfGenerator {
+class BeautifulPdfGenerator {
   private doc: jsPDF;
   private pageWidth: number;
   private pageHeight: number;
@@ -18,6 +12,7 @@ class SimplePdfGenerator {
   private contentWidth: number;
   private y: number;
   private pageNumber: number;
+  private lineHeight: number;
 
   constructor() {
     this.doc = new jsPDF({
@@ -32,116 +27,214 @@ class SimplePdfGenerator {
     this.contentWidth = this.pageWidth - (this.margin * 2);
     this.y = this.margin;
     this.pageNumber = 1;
+    this.lineHeight = 7;
   }
 
   private addNewPage() {
+    this.addPageNumber();
     this.doc.addPage();
     this.y = this.margin;
     this.pageNumber++;
   }
 
+  private addPageNumber() {
+    this.doc.setFont('helvetica', 'normal');
+    this.doc.setFontSize(9);
+    this.doc.setTextColor(120, 120, 120);
+    
+    const pageText = `${this.pageNumber}`;
+    const textWidth = this.doc.getTextWidth(pageText);
+    const x = (this.pageWidth - textWidth) / 2;
+    this.doc.text(pageText, x, this.pageHeight - 15);
+  }
+
   private checkSpace(needed: number) {
-    if (this.y + needed > this.pageHeight - 25) {
+    if (this.y + needed > this.pageHeight - 30) {
       this.addNewPage();
     }
   }
 
   private cleanText(text: string): string {
     return text
-      // Remove markdown formatting
-      .replace(/\*\*\*(.+?)\*\*\*/g, '$1') // bold italic
-      .replace(/\*\*(.+?)\*\*/g, '$1') // bold
-      .replace(/\*(.+?)\*/g, '$1') // italic
-      .replace(/__(.+?)__/g, '$1') // underline
-      .replace(/_(.+?)_/g, '$1') // italic
-      .replace(/~~(.+?)~~/g, '$1') // strikethrough
-      .replace(/`(.+?)`/g, '$1') // inline code
-      .replace(/\[(.+?)\]\(.+?\)/g, '$1') // links
-      .replace(/!\[.*?\]\(.+?\)/g, '[Image]') // images
-      .replace(/^\s*#{1,6}\s+/gm, '') // heading markers
-      .replace(/^\s*[-*+]\s+/gm, '• ') // list markers
-      .replace(/^\s*\d+\.\s+/gm, '') // numbered lists
-      .replace(/^\s*>\s+/gm, '') // blockquotes
-      .replace(/```[\s\S]*?```/g, '[Code Block]') // code blocks
-      .replace(/---+/g, '') // horizontal rules
+      .replace(/\*\*\*(.+?)\*\*\*/g, '$1')
+      .replace(/\*\*(.+?)\*\*/g, '$1')
+      .replace(/\*(.+?)\*/g, '$1')
+      .replace(/__(.+?)__/g, '$1')
+      .replace(/_(.+?)_/g, '$1')
+      .replace(/~~(.+?)~~/g, '$1')
+      .replace(/`(.+?)`/g, '$1')
+      .replace(/\[(.+?)\]\(.+?\)/g, '$1')
+      .replace(/!\[.*?\]\(.+?\)/g, '')
+      .replace(/^\s*#{1,6}\s+/gm, '')
+      .replace(/^\s*[-*+]\s+/gm, '')
+      .replace(/^\s*\d+\.\s+/gm, '')
+      .replace(/^\s*>\s+/gm, '')
+      .replace(/---+/g, '')
       .trim();
   }
 
-  private parseMarkdown(markdown: string): TextBlock[] {
-    const blocks: TextBlock[] = [];
-    const lines = markdown.split('\n');
-    let inCodeBlock = false;
-    let codeContent: string[] = [];
-
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-      const trimmed = line.trim();
-
-      // Code block handling
-      if (trimmed.startsWith('```')) {
-        if (inCodeBlock) {
-          blocks.push({
-            type: 'code',
-            content: codeContent.join('\n')
-          });
-          codeContent = [];
-          inCodeBlock = false;
-        } else {
-          inCodeBlock = true;
-        }
-        continue;
-      }
-
-      if (inCodeBlock) {
-        codeContent.push(line);
-        continue;
-      }
-
-      // Skip empty lines
-      if (!trimmed) continue;
-
-      // Headings
-      if (trimmed.startsWith('# ')) {
-        blocks.push({ type: 'heading1', content: this.cleanText(trimmed.substring(2)) });
-      } else if (trimmed.startsWith('## ')) {
-        blocks.push({ type: 'heading2', content: this.cleanText(trimmed.substring(3)) });
-      } else if (trimmed.startsWith('### ')) {
-        blocks.push({ type: 'heading3', content: this.cleanText(trimmed.substring(4)) });
-      }
-      // List items
-      else if (trimmed.match(/^[-*+]\s+/) || trimmed.match(/^\d+\.\s+/)) {
-        blocks.push({ type: 'list-item', content: this.cleanText(trimmed) });
-      }
-      // Regular paragraph
-      else if (trimmed.length > 0) {
-        blocks.push({ type: 'paragraph', content: this.cleanText(trimmed) });
-      }
-    }
-
-    return blocks;
+  private splitIntoSentences(text: string): string[] {
+    return text.match(/[^.!?]+[.!?]+/g) || [text];
   }
 
-  private writeText(text: string, fontSize: number, isBold: boolean = false, lineHeight: number = 7) {
-    this.doc.setFont('helvetica', isBold ? 'bold' : 'normal');
-    this.doc.setFontSize(fontSize);
+  private writeHeading1(text: string) {
+    this.checkSpace(25);
+    this.y += 12;
+    
+    this.doc.setFont('helvetica', 'bold');
+    this.doc.setFontSize(18);
     this.doc.setTextColor(0, 0, 0);
-
+    
     const lines = this.doc.splitTextToSize(text, this.contentWidth);
-    const totalHeight = lines.length * lineHeight;
-
-    this.checkSpace(totalHeight + 5);
-
     lines.forEach((line: string) => {
       this.doc.text(line, this.margin, this.y);
-      this.y += lineHeight;
+      this.y += 9;
     });
+    
+    this.y += 3;
+    this.doc.setDrawColor(0, 0, 0);
+    this.doc.setLineWidth(0.5);
+    this.doc.line(this.margin, this.y, this.margin + this.contentWidth, this.y);
+    this.y += 10;
+  }
+
+  private writeHeading2(text: string) {
+    this.checkSpace(20);
+    this.y += 10;
+    
+    this.doc.setFont('helvetica', 'bold');
+    this.doc.setFontSize(14);
+    this.doc.setTextColor(0, 0, 0);
+    
+    const lines = this.doc.splitTextToSize(text, this.contentWidth);
+    lines.forEach((line: string) => {
+      this.doc.text(line, this.margin, this.y);
+      this.y += 7;
+    });
+    
+    this.y += 6;
+  }
+
+  private writeHeading3(text: string) {
+    this.checkSpace(15);
+    this.y += 8;
+    
+    this.doc.setFont('helvetica', 'bold');
+    this.doc.setFontSize(12);
+    this.doc.setTextColor(20, 20, 20);
+    
+    const lines = this.doc.splitTextToSize(text, this.contentWidth);
+    lines.forEach((line: string) => {
+      this.doc.text(line, this.margin, this.y);
+      this.y += 6;
+    });
+    
+    this.y += 4;
+  }
+
+  private writeParagraph(text: string) {
+    this.doc.setFont('times', 'normal');
+    this.doc.setFontSize(11);
+    this.doc.setTextColor(40, 40, 40);
+    
+    const lines = this.doc.splitTextToSize(text, this.contentWidth);
+    
+    lines.forEach((line: string, index: number) => {
+      this.checkSpace(this.lineHeight);
+      this.doc.text(line, this.margin, this.y, { 
+        align: 'justify',
+        maxWidth: this.contentWidth 
+      });
+      this.y += this.lineHeight;
+    });
+    
+    this.y += 4;
+  }
+
+  private writeListItem(text: string, isOrdered: boolean, number?: number) {
+    this.doc.setFont('times', 'normal');
+    this.doc.setFontSize(11);
+    this.doc.setTextColor(40, 40, 40);
+    
+    const bullet = isOrdered ? `${number}. ` : '• ';
+    const indent = 8;
+    const textWidth = this.contentWidth - indent;
+    
+    const lines = this.doc.splitTextToSize(text, textWidth);
+    
+    lines.forEach((line: string, index: number) => {
+      this.checkSpace(this.lineHeight);
+      
+      if (index === 0) {
+        this.doc.text(bullet, this.margin + 2, this.y);
+        this.doc.text(line, this.margin + indent, this.y);
+      } else {
+        this.doc.text(line, this.margin + indent, this.y);
+      }
+      
+      this.y += this.lineHeight;
+    });
+    
+    this.y += 2;
+  }
+
+  private writeCodeBlock(text: string) {
+    this.checkSpace(20);
+    
+    this.doc.setFillColor(248, 248, 248);
+    const codeLines = text.split('\n').slice(0, 20);
+    const blockHeight = (codeLines.length * 5) + 8;
+    
+    this.doc.roundedRect(this.margin, this.y - 2, this.contentWidth, blockHeight, 2, 2, 'F');
+    
+    this.doc.setFont('courier', 'normal');
+    this.doc.setFontSize(9);
+    this.doc.setTextColor(60, 60, 60);
+    
+    this.y += 3;
+    
+    codeLines.forEach(line => {
+      const trimmedLine = line.substring(0, 90);
+      this.doc.text(trimmedLine, this.margin + 4, this.y);
+      this.y += 5;
+    });
+    
+    this.y += 6;
+  }
+
+  private writeBlockquote(text: string) {
+    this.checkSpace(15);
+    
+    const indent = 10;
+    const quoteWidth = this.contentWidth - indent - 5;
+    
+    this.doc.setFont('times', 'italic');
+    this.doc.setFontSize(11);
+    this.doc.setTextColor(80, 80, 80);
+    
+    const lines = this.doc.splitTextToSize(text, quoteWidth);
+    const startY = this.y;
+    
+    lines.forEach((line: string) => {
+      this.checkSpace(this.lineHeight);
+      this.doc.text(line, this.margin + indent, this.y);
+      this.y += this.lineHeight;
+    });
+    
+    // Vertical bar
+    this.doc.setDrawColor(150, 150, 150);
+    this.doc.setLineWidth(2);
+    this.doc.line(this.margin + 4, startY - 2, this.margin + 4, this.y - 2);
+    
+    this.y += 5;
   }
 
   public addCoverPage(title: string, metadata: { words: number; modules: number; date: string }) {
+    this.y = 80;
+    
     // Title
-    this.y = this.pageHeight / 3;
     this.doc.setFont('helvetica', 'bold');
-    this.doc.setFontSize(28);
+    this.doc.setFontSize(24);
     this.doc.setTextColor(0, 0, 0);
     
     const titleLines = this.doc.splitTextToSize(title, this.contentWidth - 20);
@@ -153,97 +246,145 @@ class SimplePdfGenerator {
     });
 
     // Metadata
-    this.y += 20;
-    this.doc.setFontSize(12);
+    this.y += 30;
     this.doc.setFont('helvetica', 'normal');
+    this.doc.setFontSize(11);
     this.doc.setTextColor(100, 100, 100);
 
     const metaLines = [
-      `${metadata.words.toLocaleString()} words • ${metadata.modules} chapters`,
-      `Generated on ${metadata.date}`,
+      `${metadata.words.toLocaleString()} words`,
+      `${metadata.modules} chapters`,
       '',
-      'Powered by Pustakam AI'
+      metadata.date
     ];
 
     metaLines.forEach(line => {
       const lineWidth = this.doc.getTextWidth(line);
       const x = (this.pageWidth - lineWidth) / 2;
       this.doc.text(line, x, this.y);
-      this.y += 7;
+      this.y += 8;
     });
+
+    // Branding
+    this.y = this.pageHeight - 30;
+    this.doc.setFontSize(9);
+    this.doc.setTextColor(150, 150, 150);
+    const brandText = 'Generated by Pustakam AI';
+    const brandWidth = this.doc.getTextWidth(brandText);
+    this.doc.text(brandText, (this.pageWidth - brandWidth) / 2, this.y);
 
     this.addNewPage();
   }
 
-  public addContent(blocks: TextBlock[]) {
-    blocks.forEach(block => {
-      switch (block.type) {
-        case 'heading1':
-          this.y += 10;
-          this.writeText(block.content, 20, true, 10);
-          this.y += 5;
-          // Underline
-          this.doc.setDrawColor(0, 0, 0);
-          this.doc.setLineWidth(0.5);
-          this.doc.line(this.margin, this.y, this.margin + this.contentWidth, this.y);
-          this.y += 8;
-          break;
-
-        case 'heading2':
-          this.y += 8;
-          this.writeText(block.content, 16, true, 8);
-          this.y += 5;
-          break;
-
-        case 'heading3':
-          this.y += 6;
-          this.writeText(block.content, 14, true, 7);
-          this.y += 4;
-          break;
-
-        case 'code':
-          this.checkSpace(30);
-          this.doc.setFillColor(245, 245, 245);
-          const codeHeight = Math.min(block.content.split('\n').length * 5 + 10, 40);
-          this.doc.rect(this.margin, this.y - 3, this.contentWidth, codeHeight, 'F');
-          
-          this.doc.setFont('courier', 'normal');
-          this.doc.setFontSize(9);
-          const codeLines = this.doc.splitTextToSize(block.content, this.contentWidth - 10);
-          codeLines.slice(0, 6).forEach((line: string) => {
-            this.doc.text(line, this.margin + 5, this.y);
-            this.y += 5;
-          });
-          this.y += 8;
-          break;
-
-        case 'list-item':
-          this.writeText(block.content, 11, false, 6);
-          this.y += 2;
-          break;
-
-        case 'paragraph':
-          this.writeText(block.content, 11, false, 6);
-          this.y += 4;
-          break;
+  public parseAndRender(markdown: string, onProgress?: (progress: number) => void) {
+    const lines = markdown.split('\n');
+    let inCodeBlock = false;
+    let codeLines: string[] = [];
+    let listItems: { text: string; ordered: boolean; number: number }[] = [];
+    let inList = false;
+    let listNumber = 1;
+    
+    const total = lines.length;
+    
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const trimmed = line.trim();
+      
+      // Progress update
+      if (onProgress && i % 50 === 0) {
+        const progress = 40 + ((i / total) * 40);
+        onProgress(Math.floor(progress));
       }
-    });
+
+      // Code block toggle
+      if (trimmed.startsWith('```')) {
+        if (inCodeBlock) {
+          this.writeCodeBlock(codeLines.join('\n'));
+          codeLines = [];
+          inCodeBlock = false;
+        } else {
+          inCodeBlock = true;
+        }
+        continue;
+      }
+
+      if (inCodeBlock) {
+        codeLines.push(line);
+        continue;
+      }
+
+      // Empty line
+      if (!trimmed) {
+        if (inList) {
+          inList = false;
+          listNumber = 1;
+        }
+        continue;
+      }
+
+      // Horizontal rule
+      if (trimmed.match(/^[-*_]{3,}$/)) {
+        this.y += 5;
+        this.doc.setDrawColor(200, 200, 200);
+        this.doc.setLineWidth(0.3);
+        this.doc.line(this.margin, this.y, this.margin + this.contentWidth, this.y);
+        this.y += 5;
+        continue;
+      }
+
+      // Headings
+      if (trimmed.startsWith('# ')) {
+        inList = false;
+        this.writeHeading1(this.cleanText(trimmed.substring(2)));
+      } else if (trimmed.startsWith('## ')) {
+        inList = false;
+        this.writeHeading2(this.cleanText(trimmed.substring(3)));
+      } else if (trimmed.startsWith('### ')) {
+        inList = false;
+        this.writeHeading3(this.cleanText(trimmed.substring(4)));
+      }
+      // Blockquote
+      else if (trimmed.startsWith('>')) {
+        inList = false;
+        this.writeBlockquote(this.cleanText(trimmed.substring(1)));
+      }
+      // Ordered list
+      else if (trimmed.match(/^\d+\.\s+/)) {
+        const text = this.cleanText(trimmed.replace(/^\d+\.\s+/, ''));
+        this.writeListItem(text, true, listNumber);
+        listNumber++;
+        inList = true;
+      }
+      // Unordered list
+      else if (trimmed.match(/^[-*+]\s+/)) {
+        const text = this.cleanText(trimmed.replace(/^[-*+]\s+/, ''));
+        this.writeListItem(text, false);
+        inList = true;
+      }
+      // Regular paragraph
+      else if (trimmed.length > 0) {
+        inList = false;
+        const cleanedText = this.cleanText(trimmed);
+        if (cleanedText.length > 0) {
+          this.writeParagraph(cleanedText);
+        }
+      }
+    }
   }
 
-  public addFooters() {
+  public finalize() {
+    this.addPageNumber();
     const totalPages = this.doc.getNumberOfPages();
-
-    for (let i = 1; i <= totalPages; i++) {
+    
+    // Add "Generated by Pustakam AI" to bottom of all pages
+    for (let i = 2; i <= totalPages; i++) {
       this.doc.setPage(i);
-      this.doc.setFontSize(9);
-      this.doc.setTextColor(150, 150, 150);
       this.doc.setFont('helvetica', 'normal');
-
-      this.doc.text('Generated by Pustakam AI', this.margin, this.pageHeight - 10);
+      this.doc.setFontSize(8);
+      this.doc.setTextColor(180, 180, 180);
       
-      const pageText = `Page ${i} of ${totalPages}`;
-      const textWidth = this.doc.getTextWidth(pageText);
-      this.doc.text(pageText, this.pageWidth - this.margin - textWidth, this.pageHeight - 10);
+      const text = 'Pustakam AI';
+      this.doc.text(text, this.margin, this.pageHeight - 15);
     }
   }
 
@@ -265,13 +406,13 @@ export const pdfService = {
     }
 
     isGenerating = true;
-    onProgress(10);
+    onProgress(5);
 
     try {
-      const generator = new SimplePdfGenerator();
+      const generator = new BeautifulPdfGenerator();
       onProgress(20);
 
-      // Add cover page
+      // Cover page
       const totalWords = project.modules.reduce((sum, m) => sum + m.wordCount, 0);
       generator.addCoverPage(project.title, {
         words: totalWords,
@@ -282,18 +423,15 @@ export const pdfService = {
           day: 'numeric'
         })
       });
-      onProgress(40);
+      onProgress(30);
 
-      // Parse and add content
-      const blocks = generator['parseMarkdown'](project.finalBook);
-      onProgress(60);
+      // Content
+      generator.parseAndRender(project.finalBook, onProgress);
+      onProgress(85);
 
-      generator.addContent(blocks);
-      onProgress(80);
-
-      // Add footers
-      generator.addFooters();
-      onProgress(90);
+      // Finalize
+      generator.finalize();
+      onProgress(95);
 
       // Save
       const safeTitle = project.title
