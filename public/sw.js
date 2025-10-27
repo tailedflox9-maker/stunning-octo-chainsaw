@@ -2,21 +2,26 @@ const CACHE_NAME = 'ai-tutor-v1';
 const urlsToCache = [
   '/',
   '/index.html',
-  '/white-logo.png', // Still needed for in-app UI if not all are changed
-  '/pustakam-logo.png', // New logo for PWA
-  '/manifest.json',
-  // Add other static assets as needed
+  '/pustakam-logo.png',
+  '/manifest.json'
+  // Removed references to non-existent files
 ];
 
-// Install event - cache resources
+// Install event - cache resources with error handling
 self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then(cache => {
-        return cache.addAll(urlsToCache);
+        return Promise.allSettled(
+          urlsToCache.map(url => 
+            cache.add(url).catch(err => {
+              console.warn(`Failed to cache ${url}:`, err);
+              return Promise.resolve(); // Continue even if one fails
+            })
+          )
+        );
       })
   );
-  // Skip waiting to activate immediately
   self.skipWaiting();
 });
 
@@ -33,80 +38,49 @@ self.addEventListener('activate', event => {
       );
     })
   );
-  // Claim all clients immediately
   self.clients.claim();
 });
 
 // Fetch event - serve from cache when offline
 self.addEventListener('fetch', event => {
-  // Skip non-GET requests
-  if (event.request.method !== 'GET') {
-    return;
-  }
+  if (event.request.method !== 'GET') return;
 
-  // Skip external API requests
-  if (event.request.url.includes('googleapis.com') || 
-      event.request.url.includes('bigmodel.cn') ||
-      event.request.url.includes('api.mistral.ai')) {
+  // Skip external API requests and chrome extensions
+  const url = new URL(event.request.url);
+  if (
+    url.origin !== self.location.origin ||
+    event.request.url.includes('googleapis.com') || 
+    event.request.url.includes('bigmodel.cn') ||
+    event.request.url.includes('api.mistral.ai') ||
+    event.request.url.includes('chrome-extension')
+  ) {
     return;
   }
 
   event.respondWith(
     caches.match(event.request)
       .then(response => {
-        // Return cached version or fetch from network
-        return response || fetch(event.request).then(fetchResponse => {
-          // Check if we received a valid response
+        if (response) return response;
+        
+        return fetch(event.request).then(fetchResponse => {
           if (!fetchResponse || fetchResponse.status !== 200 || fetchResponse.type !== 'basic') {
             return fetchResponse;
           }
 
-          // Clone the response
           const responseToCache = fetchResponse.clone();
-
-          caches.open(CACHE_NAME)
-            .then(cache => {
-              cache.put(event.request, responseToCache);
+          caches.open(CACHE_NAME).then(cache => {
+            cache.put(event.request, responseToCache).catch(err => {
+              console.warn('Failed to cache:', event.request.url, err);
             });
+          });
 
           return fetchResponse;
         });
       })
       .catch(() => {
-        // If both cache and network fail, return offline page
         if (event.request.destination === 'document') {
           return caches.match('/index.html');
         }
       })
   );
-});
-
-// Handle background sync for offline message queuing (optional)
-self.addEventListener('sync', event => {
-  if (event.tag === 'background-sync') {
-    event.waitUntil(
-      // Handle any background sync tasks here
-      Promise.resolve()
-    );
-  }
-});
-
-// Handle push notifications (optional)
-self.addEventListener('push', event => {
-  if (event.data) {
-    const options = {
-      body: event.data.text(),
-      icon: '/pustakam-logo.png', // Use new logo for push notifications
-      badge: '/pustakam-logo.png', // Use new logo for badge
-      vibrate: [100, 50, 100],
-      data: {
-        dateOfArrival: Date.now(),
-        primaryKey: 1
-      }
-    };
-    
-    event.waitUntil(
-      self.registration.showNotification('AI Tutor', options)
-    );
-  }
 });
