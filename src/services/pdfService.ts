@@ -296,9 +296,15 @@ class PremiumPdfGenerator {
             ]
           },
           layout: {
-            hLineWidth: (i: number, node: any) => i === 0 || i === 1 || i === node.table.body.length ? 1 : 0.5,
+            hLineWidth: (i: number, node: any) => {
+              if (!node || !node.table) return 0.5;
+              return i === 0 || i === 1 || i === node.table.body.length ? 1 : 0.5;
+            },
             vLineWidth: () => 0.5,
-            hLineColor: (i: number, node: any) => i === 0 || i === 1 ? '#2a2a2a' : '#e0e0e0',
+            hLineColor: (i: number, node: any) => {
+              if (!node || !node.table) return '#e0e0e0';
+              return i === 0 || i === 1 ? '#2a2a2a' : '#e0e0e0';
+            },
             vLineColor: () => '#e0e0e0',
             paddingLeft: () => 10,
             paddingRight: () => 10,
