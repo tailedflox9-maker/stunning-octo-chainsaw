@@ -1,4 +1,4 @@
-// src/App.tsx - COMPLETE WITH PAUSE/RESUME
+// src/App.tsx - FIXED PAUSE/RESUME
 import React, { useState, useEffect, useMemo } from 'react';
 import { Analytics } from '@vercel/analytics/react';
 import { Sidebar } from './components/Sidebar';
@@ -58,7 +58,6 @@ function App() {
     [currentBookId, books]
   );
 
-  // ✅ DERIVED isGenerating STATE — NO MORE MANUAL FLAGS
   const isGenerating = useMemo(() => {
     if (!currentBook) return false;
     return (
@@ -78,6 +77,27 @@ function App() {
     generationStartTime,
     generationStatus.totalWordsGenerated || totalWordsGenerated
   );
+
+  // ✅ FIX: Check for paused state on mount and when book changes
+  useEffect(() => {
+    if (currentBook && currentBook.status === 'generating_content') {
+      const checkpoint = bookService.getCheckpointInfo(currentBook.id);
+      if (checkpoint && checkpoint.completed > 0) {
+        // Book has partial progress - check if it was paused
+        const isPaused = bookService.isPaused(currentBook.id);
+        if (isPaused) {
+          setGenerationStatus({
+            status: 'paused',
+            totalProgress: 0,
+            totalWordsGenerated: currentBook.modules.reduce((sum, m) => 
+              sum + (m.status === 'completed' ? m.wordCount : 0), 0
+            ),
+            logMessage: '⏸ Generation was paused'
+          });
+        }
+      }
+    }
+  }, [currentBook?.id]);
 
   useEffect(() => {
     const handleResize = () => {
@@ -176,6 +196,25 @@ function App() {
     setCurrentBookId(id);
     if (id) {
       setView('detail');
+      
+      // ✅ FIX: Check for paused state when selecting book
+      const book = books.find(b => b.id === id);
+      if (book && book.status === 'generating_content') {
+        const checkpoint = bookService.getCheckpointInfo(id);
+        if (checkpoint && checkpoint.completed > 0) {
+          const isPaused = bookService.isPaused(id);
+          if (isPaused) {
+            setGenerationStatus({
+              status: 'paused',
+              totalProgress: 0,
+              totalWordsGenerated: book.modules.reduce((sum, m) => 
+                sum + (m.status === 'completed' ? m.wordCount : 0), 0
+              ),
+              logMessage: '⏸ Generation was paused'
+            });
+          }
+        }
+      }
     }
     if (isMobile) {
       setSidebarOpen(false);
@@ -228,27 +267,38 @@ function App() {
       return;
     }
 
+    // ✅ FIX: Check for checkpoint with better messaging
     const hasCheckpoint = bookService.hasCheckpoint(book.id);
     const checkpointInfo = bookService.getCheckpointInfo(book.id);
 
-    if (hasCheckpoint && checkpointInfo) {
-      const message = `Found previous progress (saved ${checkpointInfo.lastSaved}):\n\n` +
+    if (hasCheckpoint && checkpointInfo && checkpointInfo.completed > 0) {
+      const message = `📚 Previous Progress Found\n\n` +
+        `Last saved: ${checkpointInfo.lastSaved}\n` +
         `✓ ${checkpointInfo.completed} module(s) completed\n` +
-        `✗ ${checkpointInfo.failed} module(s) failed\n\n` +
-        `Do you want to:\n` +
-        `• Click OK to RESUME from where you left off\n` +
-        `• Click Cancel to START FRESH (will lose progress)`;
+        `${checkpointInfo.failed > 0 ? `✗ ${checkpointInfo.failed} module(s) failed\n` : ''}\n` +
+        `Would you like to:\n\n` +
+        `• Click OK to RESUME from checkpoint\n` +
+        `• Click Cancel to START FRESH (progress will be lost)`;
 
       const shouldResume = window.confirm(message);
       
       if (!shouldResume) {
+        // Clear checkpoint and reset
         localStorage.removeItem(`checkpoint_${book.id}`);
+        localStorage.removeItem(`pause_flag_${book.id}`);
+        bookService.resumeGeneration(book.id); // Clear any pause flags
         handleBookProgressUpdate(book.id, { 
           modules: [],
           status: 'generating_content',
           progress: 15
         });
+      } else {
+        // Resume from checkpoint - clear pause flag
+        bookService.resumeGeneration(book.id);
       }
+    } else {
+      // No checkpoint - start fresh
+      bookService.resumeGeneration(book.id);
     }
 
     const initialWords = book.modules.reduce((sum, m) => sum + (m.status === 'completed' ? m.wordCount : 0), 0);
@@ -265,86 +315,100 @@ function App() {
     try {
       await bookService.generateAllModulesWithRecovery(book, session);
       
-      setGenerationStatus(prev => ({
-        ...prev,
-        status: 'completed',
-        totalProgress: 100,
-        logMessage: '✓ Generation complete!'
-      }));
+      // ✅ FIX: Only mark as completed if not paused
+      if (!bookService.isPaused(book.id)) {
+        setGenerationStatus(prev => ({
+          ...prev,
+          status: 'completed',
+          totalProgress: 100,
+          logMessage: '✓ Generation complete!'
+        }));
+      }
     } catch (error) {
       console.error("Module generation failed:", error);
       const errorMessage = error instanceof Error ? error.message : 'Generation failed';
       
-      setGenerationStatus(prev => ({
-        ...prev,
-        status: 'error',
-        logMessage: errorMessage
-      }));
-      
-      handleBookProgressUpdate(book.id, { 
-        status: 'error', 
-        error: errorMessage
-      });
+      // ✅ FIX: Don't mark as error if paused
+      if (!bookService.isPaused(book.id)) {
+        setGenerationStatus(prev => ({
+          ...prev,
+          status: 'error',
+          logMessage: errorMessage
+        }));
+        
+        handleBookProgressUpdate(book.id, { 
+          status: 'error', 
+          error: errorMessage
+        });
+      }
     }
   };
 
-const handlePauseGeneration = (bookId: string) => {
-  console.log('🔴 Pause button clicked for book:', bookId);
-  
-  // FIX: Set pause flag in service first
-  bookService.pauseGeneration(bookId);
-  
-  // FIX: Update local state immediately
-  setIsGenerating(false);
-  setGenerationStatus(prev => ({
-    ...prev,
-    status: 'paused',
-    logMessage: '⏸ Pausing generation...'
-  }));
-};
+  const handlePauseGeneration = (bookId: string) => {
+    console.log('🔴 Pausing generation for book:', bookId);
+    
+    // Set pause flag in service
+    bookService.pauseGeneration(bookId);
+    
+    // Update UI immediately
+    setGenerationStatus(prev => ({
+      ...prev,
+      status: 'paused',
+      logMessage: '⏸ Generation paused - progress saved'
+    }));
+  };
 
-const handleResumeGeneration = async (book: BookProject, session: BookSession) => {
-  console.log('▶ Resume button clicked for book:', book.id);
-  
-  // FIX: Clear pause flag first
-  bookService.resumeGeneration(book.id);
-  
-  // FIX: Update local state immediately
-  setIsGenerating(true);
-  setGenerationStartTime(new Date());
-  
-  setGenerationStatus({
-    status: 'generating',
-    totalProgress: 0,
-    totalWordsGenerated: book.modules.reduce((sum, m) => sum + (m.status === 'completed' ? m.wordCount : 0), 0),
-    logMessage: '▶ Resuming generation...'
-  });
-  
-  try {
-    await bookService.generateAllModulesWithRecovery(book, session);
+  const handleResumeGeneration = async (book: BookProject, session: BookSession) => {
+    console.log('▶ Resuming generation for book:', book.id);
     
-    setGenerationStatus(prev => ({
-      ...prev,
-      status: 'completed',
-      totalProgress: 100,
-      logMessage: '✓ Generation complete!'
-    }));
-  } catch (error) {
-    console.error("Generation failed:", error);
-    const errorMessage = error instanceof Error ? error.message : 'Generation failed';
+    // Clear pause flag
+    bookService.resumeGeneration(book.id);
     
-    setGenerationStatus(prev => ({
-      ...prev,
-      status: 'error',
-      logMessage: errorMessage
-    }));
+    // Reset generation state
+    setGenerationStartTime(new Date());
     
-    handleBookProgressUpdate(book.id, { 
-      status: 'error', 
-      error: errorMessage
+    const initialWords = book.modules.reduce((sum, m) => 
+      sum + (m.status === 'completed' ? m.wordCount : 0), 0
+    );
+    
+    setGenerationStatus({
+      status: 'generating',
+      totalProgress: 0,
+      totalWordsGenerated: initialWords,
+      logMessage: '▶ Resuming generation from checkpoint...'
     });
-  }
-};
+    
+    handleBookProgressUpdate(book.id, { status: 'generating_content' });
+    
+    try {
+      await bookService.generateAllModulesWithRecovery(book, session);
+      
+      if (!bookService.isPaused(book.id)) {
+        setGenerationStatus(prev => ({
+          ...prev,
+          status: 'completed',
+          totalProgress: 100,
+          logMessage: '✓ Generation complete!'
+        }));
+      }
+    } catch (error) {
+      console.error("Generation failed:", error);
+      const errorMessage = error instanceof Error ? error.message : 'Generation failed';
+      
+      if (!bookService.isPaused(book.id)) {
+        setGenerationStatus(prev => ({
+          ...prev,
+          status: 'error',
+          logMessage: errorMessage
+        }));
+        
+        handleBookProgressUpdate(book.id, { 
+          status: 'error', 
+          error: errorMessage
+        });
+      }
+    }
+  };
 
   const handleRetryFailedModules = async (book: BookProject, session: BookSession): Promise<void> => {
     if (!isOnline) {
@@ -429,6 +493,7 @@ const handleResumeGeneration = async (book: BookProject, session: BookSession) =
         setShowListInMain(true);
       }
       localStorage.removeItem(`checkpoint_${id}`);
+      localStorage.removeItem(`pause_flag_${id}`);
     }
   };
   
