@@ -1,4 +1,4 @@
-// src/components/BookView.tsx - COMPLETE WITH PAUSE/RESUME
+// src/components/BookView.tsx - COMPLETE FIXED VERSION
 import React, { useEffect, ReactNode, useMemo, useState, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -262,17 +262,38 @@ const EmbeddedProgressPanel = ({
   const overallProgress = (stats.completedModules / (stats.totalModules || 1)) * 100;
 
   return (
-    <div className="bg-zinc-900/60 backdrop-blur-xl border border-zinc-800/50 rounded-xl overflow-hidden animate-fade-in-up">
+    <div className={`bg-zinc-900/60 backdrop-blur-xl border rounded-xl overflow-hidden animate-fade-in-up ${
+      isPaused ? 'border-yellow-500/50' : 'border-zinc-800/50'
+    }`}>
       <div className="p-6">
-        {/* Header */}
+        {/* Header with Status */}
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
-            {isPaused ? <Pause className="w-5 h-5 text-yellow-400" /> : <Brain className="w-5 h-5 text-blue-400" />}
-            <h3 className="text-lg font-semibold">{isPaused ? 'Generation Paused' : 'Writing chapters...'}</h3>
+            {isPaused ? (
+              <div className="w-12 h-12 flex items-center justify-center bg-yellow-500/20 rounded-lg border border-yellow-500/30">
+                <Pause className="w-6 h-6 text-yellow-400" />
+              </div>
+            ) : (
+              <div className="w-12 h-12 flex items-center justify-center bg-blue-500/20 rounded-lg border border-blue-500/30">
+                <Brain className="w-6 h-6 text-blue-400 animate-pulse" />
+              </div>
+            )}
+            <div>
+              <h3 className="text-lg font-semibold text-white">
+                {isPaused ? 'Generation Paused' : 'Generating Chapters...'}
+              </h3>
+              <p className="text-sm text-gray-400">
+                {stats.completedModules} of {stats.totalModules} complete
+              </p>
+            </div>
           </div>
           <div className="flex items-center gap-3">
-            <div className={`px-3 py-1 border rounded-full text-xs font-semibold ${isPaused ? 'bg-yellow-500/20 border-yellow-500/30 text-yellow-300' : 'bg-blue-500/20 border-blue-500/30 text-blue-300'}`}>
-              {stats.completedModules}/{stats.totalModules} Complete
+            <div className={`px-3 py-1.5 border rounded-full text-xs font-semibold ${
+              isPaused 
+                ? 'bg-yellow-500/20 border-yellow-500/30 text-yellow-300' 
+                : 'bg-blue-500/20 border-blue-500/30 text-blue-300'
+            }`}>
+              {Math.round(overallProgress)}%
             </div>
             <div className="text-sm font-mono text-zinc-400">
               {stats.totalWordsGenerated.toLocaleString()} words
@@ -281,81 +302,127 @@ const EmbeddedProgressPanel = ({
         </div>
 
         {/* Progress Bar */}
-        <GradientProgressBar
-          progress={overallProgress}
-          active={generationStatus.status === 'generating'}
-        />
-        
-        {/* Visual cue for paused state */}
-        {isPaused ? (
-          <div className="mt-5 mb-4 text-center text-zinc-500 text-sm h-14 flex items-center justify-center">
-            <p>Progress is saved. You can resume at any time.</p>
-          </div>
-        ) : (
-          <div className="mt-5 mb-4">
-            <PixelAnimation />
+        <div className="mb-4">
+          <GradientProgressBar
+            progress={overallProgress}
+            active={generationStatus.status === 'generating'}
+          />
+        </div>
+
+        {/* Paused Message */}
+        {isPaused && (
+          <div className="mb-4 p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
+            <div className="flex items-start gap-3">
+              <Pause className="w-5 h-5 text-yellow-400 shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="text-sm font-medium text-yellow-300 mb-1">
+                  Generation Paused
+                </p>
+                <p className="text-xs text-yellow-400/80">
+                  Your progress is saved. You can resume anytime or close this tab safely.
+                </p>
+              </div>
+            </div>
           </div>
         )}
 
-        {/* Current Module Status (only when not paused) */}
-        {!isPaused && generationStatus.currentModule && generationStatus.currentModule.generatedText && (
-          <div className="bg-black/40 border border-zinc-800/50 rounded-lg p-4 mt-4">
-            <div className="flex items-center justify-between mb-3">
-              <h4 className="font-semibold text-white flex items-center gap-2">
-                <Zap className="w-4 h-4 text-yellow-400" />
-                {generationStatus.currentModule.title}
-              </h4>
-              {generationStatus.currentModule.attempt > 1 && (
-                <div className="flex items-center gap-1.5 text-xs text-yellow-400 bg-yellow-500/10 px-2 py-1 rounded-md border border-yellow-500/20">
-                  <RefreshCw className="w-3 h-3" />
-                  <span>Attempt {generationStatus.currentModule.attempt}</span>
+        {/* Current Module Status (only when generating) */}
+        {!isPaused && generationStatus.currentModule && (
+          <>
+            <div className="mt-5 mb-4">
+              <PixelAnimation />
+            </div>
+            
+            {generationStatus.currentModule.generatedText && (
+              <div className="bg-black/40 border border-zinc-800/50 rounded-lg p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="font-semibold text-white flex items-center gap-2">
+                    <Zap className="w-4 h-4 text-yellow-400" />
+                    {generationStatus.currentModule.title}
+                  </h4>
+                  {generationStatus.currentModule.attempt > 1 && (
+                    <div className="flex items-center gap-1.5 text-xs text-yellow-400 bg-yellow-500/10 px-2 py-1 rounded-md border border-yellow-500/20">
+                      <RefreshCw className="w-3 h-3" />
+                      <span>Attempt {generationStatus.currentModule.attempt}</span>
+                    </div>
+                  )}
                 </div>
+                <div
+                  ref={streamBoxRef}
+                  className="text-sm text-zinc-300 leading-relaxed max-h-32 overflow-y-auto font-mono streaming-text-box"
+                >
+                  {generationStatus.currentModule.generatedText}
+                  <span className="inline-block w-2 h-4 bg-blue-400 animate-pulse ml-1" />
+                </div>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Footer with Action Buttons - ALWAYS VISIBLE */}
+        <div className="mt-6 pt-4 border-t border-zinc-800/50">
+          <div className="flex items-center justify-between">
+            {/* Left side - Time info */}
+            <div className="flex items-center gap-2 text-sm text-zinc-400">
+              <Clock className="w-4 h-4 text-yellow-500" />
+              <span>
+                {isPaused 
+                  ? `Paused • ${stats.completedModules}/${stats.totalModules} done`
+                  : `${formatTime(stats.estimatedTimeRemaining)} remaining`
+                }
+              </span>
+            </div>
+
+            {/* Right side - Action buttons */}
+            <div className="flex items-center gap-3">
+              {/* Cancel Button - Always show when generating or paused */}
+              {onCancel && (
+                <button
+                  onClick={onCancel}
+                  className="px-4 py-2 border border-zinc-700 hover:bg-zinc-800 rounded-lg text-sm font-medium transition-all hover:border-red-500/50 hover:text-red-400"
+                  title="Stop generation and save progress"
+                >
+                  <X className="w-4 h-4 inline mr-1.5" />
+                  Cancel
+                </button>
+              )}
+
+              {/* Pause/Resume Toggle - ALWAYS VISIBLE */}
+              {isPaused ? (
+                onResume && (
+                  <button
+                    onClick={onResume}
+                    className="px-5 py-2.5 bg-green-600 hover:bg-green-700 rounded-lg text-white font-semibold transition-all shadow-lg hover:shadow-green-500/30 flex items-center gap-2"
+                    title="Resume generation from where you left off"
+                  >
+                    <Play className="w-4 h-4" />
+                    Resume Generation
+                  </button>
+                )
+              ) : (
+                onPause && (
+                  <button
+                    onClick={onPause}
+                    className="px-5 py-2.5 bg-yellow-600 hover:bg-yellow-700 rounded-lg text-white font-semibold transition-all shadow-lg hover:shadow-yellow-500/30 flex items-center gap-2"
+                    title="Pause and save progress"
+                  >
+                    <Pause className="w-4 h-4" />
+                    Pause
+                  </button>
+                )
               )}
             </div>
-            <div
-              ref={streamBoxRef}
-              className="text-sm text-zinc-300 leading-relaxed max-h-32 overflow-y-auto font-mono streaming-text-box"
-            >
-              {generationStatus.currentModule.generatedText}
-              <span className="inline-block w-2 h-4 bg-blue-400 animate-pulse ml-1" />
-            </div>
           </div>
-        )}
 
-        {/* Footer */}
-        <div className="mt-6 flex items-center justify-between">
-          <div className="flex items-center gap-2 text-sm text-zinc-500">
-            <Clock className="w-4 h-4 text-yellow-500" />
-            <span>{isPaused ? 'Paused' : `${formatTime(stats.estimatedTimeRemaining)} remaining`}</span>
-          </div>
-          <div className="flex items-center gap-3">
-             {onCancel && (
-              <button
-                onClick={onCancel}
-                className="px-4 py-2 border border-zinc-700 hover:bg-zinc-800 rounded-lg text-sm font-medium transition-all"
-              >
-                Cancel
-              </button>
-            )}
-            {isPaused ? (
-              onResume && (
-                <button
-                  onClick={onResume}
-                  className="btn btn-primary"
-                >
-                  <Play className="w-4 h-4" /> Resume
-                </button>
-              )
-            ) : (
-              onPause && (
-                <button
-                  onClick={onPause}
-                  className="btn btn-secondary"
-                >
-                  <Pause className="w-4 h-4" /> Pause
-                </button>
-              )
-            )}
+          {/* Helper text */}
+          <div className="mt-3 text-xs text-zinc-500 flex items-center gap-1.5">
+            <AlertCircle className="w-3.5 h-3.5" />
+            <span>
+              {isPaused 
+                ? 'Progress is saved. You can close this tab safely.'
+                : 'You can pause anytime. Progress will be saved automatically.'
+              }
+            </span>
           </div>
         </div>
       </div>
@@ -1531,7 +1598,7 @@ export function BookView({
                               <p className="font-medium text-white mb-2">Smart Recovery Enabled</p>
                               <ul className="space-y-1 text-xs text-gray-400">
                                 <li>✓ Progress is saved automatically</li>
-                                <li>✓ Failed modules will be retried</li>
+                                <li>✓ Failed modules will be retried 5 times</li>
                                 <li>✓ You can safely close and resume later</li>
                               </ul>
                             </div>
