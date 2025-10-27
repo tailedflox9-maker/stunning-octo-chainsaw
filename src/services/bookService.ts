@@ -2,7 +2,6 @@
 import { BookProject, BookRoadmap, BookModule, RoadmapModule, BookSession } from '../types/book';
 import { APISettings, ModelProvider } from '../types';
 import { generateId } from '../utils/helpers';
-import { logger } from '../utils/logger';
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -53,10 +52,6 @@ class BookGenerationService {
 
   updateSettings(settings: APISettings) {
     this.settings = settings;
-    logger.info('BookService settings updated', {
-      provider: settings.selectedProvider,
-      model: settings.selectedModel
-    }, 'BookService');
   }
 
   setProgressCallback(callback: (bookId: string, updates: Partial<BookProject>) => void) {
@@ -68,7 +63,6 @@ class BookGenerationService {
   }
 
   private updateProgress(bookId: string, updates: Partial<BookProject>) {
-    logger.info(`Book ${bookId} progress update`, { status: updates.status, progress: updates.progress }, 'BookService');
     if (this.onProgressUpdate) {
       this.onProgressUpdate(bookId, { ...updates, updatedAt: new Date() });
     }
@@ -117,13 +111,8 @@ class BookGenerationService {
       };
       
       localStorage.setItem(`checkpoint_${bookId}`, JSON.stringify(checkpointToSave));
-      logger.info('✓ Checkpoint saved', { 
-        bookId, 
-        completedCount: completedModuleIds.length,
-        failedCount: failedModuleIds.length 
-      }, 'Checkpoint');
     } catch (error) {
-      logger.warn('Failed to save checkpoint', error, 'Checkpoint');
+      console.warn('Failed to save checkpoint', error);
     }
   }
 
@@ -146,16 +135,10 @@ class BookGenerationService {
         
         this.checkpoints.set(bookId, checkpoint);
         
-        logger.info('✓ Checkpoint loaded', {
-          bookId,
-          completedCount: checkpoint.completedModuleIds.length,
-          failedCount: checkpoint.failedModuleIds.length
-        }, 'Checkpoint');
-        
         return checkpoint;
       }
     } catch (error) {
-      logger.warn('Failed to load checkpoint', error, 'Checkpoint');
+      console.warn('Failed to load checkpoint', error);
     }
     
     return null;
@@ -165,9 +148,8 @@ class BookGenerationService {
     this.checkpoints.delete(bookId);
     try {
       localStorage.removeItem(`checkpoint_${bookId}`);
-      logger.debug('Checkpoint cleared', { bookId }, 'Checkpoint');
     } catch (error) {
-      logger.warn('Failed to clear checkpoint', error, 'Checkpoint');
+      console.warn('Failed to clear checkpoint', error);
     }
   }
 
@@ -584,8 +566,6 @@ class BookGenerationService {
 
   // ROADMAP GENERATION
   async generateRoadmap(session: BookSession, bookId: string): Promise<BookRoadmap> {
-    logger.info('Starting roadmap generation', { bookId }, 'RoadmapGeneration');
-    
     this.updateProgress(bookId, { status: 'generating_roadmap', progress: 5 });
 
     const maxAttempts = 2;
@@ -675,12 +655,6 @@ Return ONLY valid JSON:
     session: BookSession,
     attemptNumber: number = 1
   ): Promise<BookModule> {
-    logger.info('Starting module generation', {
-      bookId: book.id,
-      moduleTitle: roadmapModule.title,
-      attempt: attemptNumber
-    }, 'ModuleGeneration');
-
     const totalWordsBefore = book.modules.reduce((sum, m) => sum + (m.status === 'completed' ? m.wordCount : 0), 0);
     this.currentGeneratedTexts.set(book.id, '');
 
@@ -843,11 +817,6 @@ ${session.preferences?.includePracticalExercises ? '### Practice Exercises' : ''
     if (!book.roadmap) {
       throw new Error('No roadmap available');
     }
-
-    logger.info('🔄 Starting bulk generation with recovery', { 
-      bookId: book.id,
-      totalModules: book.roadmap.modules.length
-    }, 'BulkGeneration');
     
     // CRITICAL: Load checkpoint first
     const checkpoint = this.loadCheckpoint(book.id);
@@ -857,11 +826,6 @@ ${session.preferences?.includePracticalExercises ? '### Practice Exercises' : ''
     const failedModuleIds = new Set<string>();
 
     if (checkpoint) {
-      logger.info('📦 Checkpoint found - recovering', {
-        checkpointCompleted: checkpoint.completedModuleIds.length,
-        checkpointFailed: checkpoint.failedModuleIds.length
-      }, 'BulkGeneration');
-
       checkpoint.completedModuleIds.forEach(id => completedModuleIds.add(id));
       checkpoint.failedModuleIds.forEach(id => failedModuleIds.add(id));
 
@@ -882,15 +846,7 @@ ${session.preferences?.includePracticalExercises ? '### Practice Exercises' : ''
       roadmapModule => !completedModuleIds.has(roadmapModule.id)
     );
 
-    logger.info('📊 Generation plan', {
-      total: book.roadmap.modules.length,
-      alreadyCompleted: completedModuleIds.size,
-      remaining: modulesToGenerate.length,
-      previouslyFailed: failedModuleIds.size
-    }, 'BulkGeneration');
-
     if (modulesToGenerate.length === 0) {
-      logger.info('✅ All modules completed', {}, 'BulkGeneration');
       this.updateProgress(book.id, { 
         status: 'roadmap_completed', 
         progress: 90,
@@ -906,11 +862,6 @@ ${session.preferences?.includePracticalExercises ? '### Practice Exercises' : ''
     for (let i = 0; i < modulesToGenerate.length; i++) {
       const roadmapModule = modulesToGenerate[i];
       
-      logger.info(`📝 Processing module ${i + 1}/${modulesToGenerate.length}`, {
-        moduleId: roadmapModule.id,
-        moduleTitle: roadmapModule.title
-      }, 'BulkGeneration');
-
       this.clearCurrentGeneratedText(book.id);
 
       try {
@@ -940,10 +891,6 @@ ${session.preferences?.includePracticalExercises ? '### Practice Exercises' : ''
             progress: Math.min(85, progress)
           });
 
-          logger.info('✅ Module checkpoint saved', {
-            moduleTitle: roadmapModule.title,
-            completedCount: completedModules.length
-          }, 'BulkGeneration');
         } else {
           failedModuleIds.add(roadmapModule.id);
           
@@ -1068,7 +1015,6 @@ ${session.preferences?.includePracticalExercises ? '### Practice Exercises' : ''
 
   // ASSEMBLE FINAL BOOK
   async assembleFinalBook(book: BookProject, session: BookSession): Promise<void> {
-    logger.info('Starting book assembly', { bookId: book.id }, 'BookAssembly');
     this.updateProgress(book.id, { status: 'assembling', progress: 90 });
 
     try {
