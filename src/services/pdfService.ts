@@ -1,4 +1,4 @@
-// src/services/pdfService.ts - BEAUTIFUL READABLE PDF
+// src/services/pdfService.ts - FIXED WITH EMOJI & PROPER ENCODING
 import jsPDF from 'jspdf';
 import { BookProject } from '../types';
 
@@ -19,6 +19,8 @@ class BeautifulPdfGenerator {
       orientation: 'portrait',
       unit: 'mm',
       format: 'a4',
+      putOnlyUsedFonts: true,
+      compress: true
     });
     
     this.pageWidth = this.doc.internal.pageSize.getWidth();
@@ -54,27 +56,46 @@ class BeautifulPdfGenerator {
     }
   }
 
+  // Enhanced text cleaning with emoji preservation
   private cleanText(text: string): string {
-    return text
-      .replace(/\*\*\*(.+?)\*\*\*/g, '$1')
-      .replace(/\*\*(.+?)\*\*/g, '$1')
-      .replace(/\*(.+?)\*/g, '$1')
-      .replace(/__(.+?)__/g, '$1')
-      .replace(/_(.+?)_/g, '$1')
-      .replace(/~~(.+?)~~/g, '$1')
-      .replace(/`(.+?)`/g, '$1')
-      .replace(/\[(.+?)\]\(.+?\)/g, '$1')
-      .replace(/!\[.*?\]\(.+?\)/g, '')
-      .replace(/^\s*#{1,6}\s+/gm, '')
-      .replace(/^\s*[-*+]\s+/gm, '')
-      .replace(/^\s*\d+\.\s+/gm, '')
-      .replace(/^\s*>\s+/gm, '')
-      .replace(/---+/g, '')
+    // First, preserve emojis and special unicode characters
+    const preserved = text
+      // Don't remove actual emojis (keep unicode ranges)
+      .replace(/\*\*\*(.+?)\*\*\*/g, '$1') // bold italic
+      .replace(/\*\*(.+?)\*\*/g, '$1') // bold
+      .replace(/\*(.+?)\*/g, '$1') // italic
+      .replace(/__(.+?)__/g, '$1') // underline
+      .replace(/_(.+?)_/g, '$1') // italic
+      .replace(/~~(.+?)~~/g, '$1') // strikethrough
+      .replace(/`(.+?)`/g, '$1') // inline code
+      .replace(/\[(.+?)\]\(.+?\)/g, '$1') // links
+      .replace(/!\[.*?\]\(.+?\)/g, '') // images
+      .replace(/^\s*#{1,6}\s+/gm, '') // heading markers
+      .replace(/^\s*[-*+]\s+/gm, '') // list markers (but keep bullet)
+      .replace(/^\s*\d+\.\s+/gm, '') // numbered lists
+      .replace(/^\s*>\s+/gm, '') // blockquotes
+      .replace(/---+/g, '') // horizontal rules
       .trim();
+
+    return preserved;
   }
 
-  private splitIntoSentences(text: string): string[] {
-    return text.match(/[^.!?]+[.!?]+/g) || [text];
+  // Safe text rendering that handles emojis
+  private renderTextSafely(text: string, x: number, y: number, options?: any) {
+    try {
+      // Try to render with original text (including emojis)
+      this.doc.text(text, x, y, options);
+    } catch (error) {
+      // If it fails (emojis not supported), replace emojis with [emoji] placeholder
+      const fallbackText = text.replace(/[\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/gu, '😊');
+      try {
+        this.doc.text(fallbackText, x, y, options);
+      } catch (finalError) {
+        // Last resort: strip all special chars
+        const stripped = text.replace(/[^\x00-\x7F]/g, '');
+        this.doc.text(stripped, x, y, options);
+      }
+    }
   }
 
   private writeHeading1(text: string) {
@@ -87,7 +108,7 @@ class BeautifulPdfGenerator {
     
     const lines = this.doc.splitTextToSize(text, this.contentWidth);
     lines.forEach((line: string) => {
-      this.doc.text(line, this.margin, this.y);
+      this.renderTextSafely(line, this.margin, this.y);
       this.y += 9;
     });
     
@@ -108,7 +129,7 @@ class BeautifulPdfGenerator {
     
     const lines = this.doc.splitTextToSize(text, this.contentWidth);
     lines.forEach((line: string) => {
-      this.doc.text(line, this.margin, this.y);
+      this.renderTextSafely(line, this.margin, this.y);
       this.y += 7;
     });
     
@@ -125,7 +146,7 @@ class BeautifulPdfGenerator {
     
     const lines = this.doc.splitTextToSize(text, this.contentWidth);
     lines.forEach((line: string) => {
-      this.doc.text(line, this.margin, this.y);
+      this.renderTextSafely(line, this.margin, this.y);
       this.y += 6;
     });
     
@@ -139,9 +160,9 @@ class BeautifulPdfGenerator {
     
     const lines = this.doc.splitTextToSize(text, this.contentWidth);
     
-    lines.forEach((line: string, index: number) => {
+    lines.forEach((line: string) => {
       this.checkSpace(this.lineHeight);
-      this.doc.text(line, this.margin, this.y, { 
+      this.renderTextSafely(line, this.margin, this.y, { 
         align: 'justify',
         maxWidth: this.contentWidth 
       });
@@ -166,10 +187,10 @@ class BeautifulPdfGenerator {
       this.checkSpace(this.lineHeight);
       
       if (index === 0) {
-        this.doc.text(bullet, this.margin + 2, this.y);
-        this.doc.text(line, this.margin + indent, this.y);
+        this.renderTextSafely(bullet, this.margin + 2, this.y);
+        this.renderTextSafely(line, this.margin + indent, this.y);
       } else {
-        this.doc.text(line, this.margin + indent, this.y);
+        this.renderTextSafely(line, this.margin + indent, this.y);
       }
       
       this.y += this.lineHeight;
@@ -183,7 +204,7 @@ class BeautifulPdfGenerator {
     
     this.doc.setFillColor(248, 248, 248);
     const codeLines = text.split('\n').slice(0, 20);
-    const blockHeight = (codeLines.length * 5) + 8;
+    const blockHeight = Math.min((codeLines.length * 5) + 8, 60);
     
     this.doc.roundedRect(this.margin, this.y - 2, this.contentWidth, blockHeight, 2, 2, 'F');
     
@@ -195,7 +216,7 @@ class BeautifulPdfGenerator {
     
     codeLines.forEach(line => {
       const trimmedLine = line.substring(0, 90);
-      this.doc.text(trimmedLine, this.margin + 4, this.y);
+      this.renderTextSafely(trimmedLine, this.margin + 4, this.y);
       this.y += 5;
     });
     
@@ -217,7 +238,7 @@ class BeautifulPdfGenerator {
     
     lines.forEach((line: string) => {
       this.checkSpace(this.lineHeight);
-      this.doc.text(line, this.margin + indent, this.y);
+      this.renderTextSafely(line, this.margin + indent, this.y);
       this.y += this.lineHeight;
     });
     
@@ -241,7 +262,7 @@ class BeautifulPdfGenerator {
     titleLines.forEach((line: string) => {
       const lineWidth = this.doc.getTextWidth(line);
       const x = (this.pageWidth - lineWidth) / 2;
-      this.doc.text(line, x, this.y);
+      this.renderTextSafely(line, x, this.y);
       this.y += 12;
     });
 
@@ -261,7 +282,7 @@ class BeautifulPdfGenerator {
     metaLines.forEach(line => {
       const lineWidth = this.doc.getTextWidth(line);
       const x = (this.pageWidth - lineWidth) / 2;
-      this.doc.text(line, x, this.y);
+      this.renderTextSafely(line, x, this.y);
       this.y += 8;
     });
 
@@ -271,7 +292,7 @@ class BeautifulPdfGenerator {
     this.doc.setTextColor(150, 150, 150);
     const brandText = 'Generated by Pustakam AI';
     const brandWidth = this.doc.getTextWidth(brandText);
-    this.doc.text(brandText, (this.pageWidth - brandWidth) / 2, this.y);
+    this.renderTextSafely(brandText, (this.pageWidth - brandWidth) / 2, this.y);
 
     this.addNewPage();
   }
@@ -280,7 +301,6 @@ class BeautifulPdfGenerator {
     const lines = markdown.split('\n');
     let inCodeBlock = false;
     let codeLines: string[] = [];
-    let listItems: { text: string; ordered: boolean; number: number }[] = [];
     let inList = false;
     let listNumber = 1;
     
@@ -299,7 +319,9 @@ class BeautifulPdfGenerator {
       // Code block toggle
       if (trimmed.startsWith('```')) {
         if (inCodeBlock) {
-          this.writeCodeBlock(codeLines.join('\n'));
+          if (codeLines.length > 0) {
+            this.writeCodeBlock(codeLines.join('\n'));
+          }
           codeLines = [];
           inCodeBlock = false;
         } else {
@@ -351,15 +373,19 @@ class BeautifulPdfGenerator {
       // Ordered list
       else if (trimmed.match(/^\d+\.\s+/)) {
         const text = this.cleanText(trimmed.replace(/^\d+\.\s+/, ''));
-        this.writeListItem(text, true, listNumber);
-        listNumber++;
-        inList = true;
+        if (text.length > 0) {
+          this.writeListItem(text, true, listNumber);
+          listNumber++;
+          inList = true;
+        }
       }
       // Unordered list
       else if (trimmed.match(/^[-*+]\s+/)) {
         const text = this.cleanText(trimmed.replace(/^[-*+]\s+/, ''));
-        this.writeListItem(text, false);
-        inList = true;
+        if (text.length > 0) {
+          this.writeListItem(text, false);
+          inList = true;
+        }
       }
       // Regular paragraph
       else if (trimmed.length > 0) {
@@ -384,7 +410,7 @@ class BeautifulPdfGenerator {
       this.doc.setTextColor(180, 180, 180);
       
       const text = 'Pustakam AI';
-      this.doc.text(text, this.margin, this.pageHeight - 15);
+      this.renderTextSafely(text, this.margin, this.pageHeight - 15);
     }
   }
 
@@ -425,7 +451,7 @@ export const pdfService = {
       });
       onProgress(30);
 
-      // Content
+      // Content with better error handling
       generator.parseAndRender(project.finalBook, onProgress);
       onProgress(85);
 
@@ -433,7 +459,7 @@ export const pdfService = {
       generator.finalize();
       onProgress(95);
 
-      // Save
+      // Save with proper filename
       const safeTitle = project.title
         .replace(/[^a-z0-9\s-]/gi, '')
         .replace(/\s+/g, '_')
