@@ -1,378 +1,16 @@
-// src/services/pdfService.ts - ROBUST NATIVE PDF GENERATION WITH PROPER FORMATTING
-import jsPDF from 'jspdf';
-import { marked } from 'marked';
+// src/services/pdfService.ts - PROFESSIONAL PDF WITH HTML RENDERING
 import { BookProject } from '../types';
+import { marked } from 'marked';
+import html2canvas from 'html2canvas';
+import jsPDF from 'jspdf';
 
 let isGenerating = false;
 
-// Enhanced PDF renderer with robust text handling
-class PdfRenderer {
-    doc: jsPDF;
-    pageWidth: number;
-    pageHeight: number;
-    margin: number;
-    contentWidth: number;
-    contentHeight: number;
-    y: number;
-    lineHeight: number;
-    currentPage: number;
-
-    constructor() {
-        this.doc = new jsPDF({ 
-            orientation: 'p', 
-            unit: 'mm', 
-            format: 'a4', 
-            compress: true,
-            putOnlyUsedFonts: true
-        });
-        this.pageWidth = this.doc.internal.pageSize.getWidth();
-        this.pageHeight = this.doc.internal.pageSize.getHeight();
-        this.margin = 20; // Increased margin for safety
-        this.contentWidth = this.pageWidth - (this.margin * 2);
-        this.contentHeight = this.pageHeight - (this.margin * 2) - 15; // Reserve space for footer
-        this.y = this.margin;
-        this.lineHeight = 7; // Standard line height in mm
-        this.currentPage = 1;
-    }
-
-    // Smart page break with safety margins
-    checkPageBreak(neededHeight: number, forceBreak: boolean = false) {
-        const bottomMargin = this.margin + 15; // Extra space for footer
-        if (forceBreak || this.y + neededHeight > this.pageHeight - bottomMargin) {
-            this.doc.addPage();
-            this.y = this.margin;
-            this.currentPage++;
-            return true;
-        }
-        return false;
-    }
-
-    // Calculate accurate text height
-    getTextHeight(text: string, fontSize: number, lineSpacing: number = 1.2): number {
-        return fontSize * 0.352778 * lineSpacing; // Convert points to mm
-    }
-
-    // Render with progress tracking
-    async render(tokens: marked.Token[], onProgress?: (progress: number) => void) {
-        const totalTokens = tokens.length;
-        let processedTokens = 0;
-
-        for (const token of tokens) {
-            try {
-                switch (token.type) {
-                    case 'heading':
-                        this.renderHeading(token as marked.Tokens.Heading);
-                        break;
-                    case 'paragraph':
-                        this.renderParagraph(token as marked.Tokens.Paragraph);
-                        break;
-                    case 'code':
-                        this.renderCode(token as marked.Tokens.Code);
-                        break;
-                    case 'list':
-                        this.renderList(token as marked.Tokens.List);
-                        break;
-                    case 'blockquote':
-                        this.renderBlockquote(token as marked.Tokens.Blockquote);
-                        break;
-                    case 'hr':
-                        this.renderHorizontalRule();
-                        break;
-                    case 'space':
-                        this.y += 5;
-                        break;
-                    case 'table':
-                        this.renderTable(token as marked.Tokens.Table);
-                        break;
-                }
-
-                processedTokens++;
-                if (onProgress && processedTokens % 10 === 0) {
-                    const progress = 50 + (processedTokens / totalTokens) * 40;
-                    onProgress(Math.floor(progress));
-                }
-            } catch (error) {
-                console.error('Error rendering token:', error);
-                // Continue with next token instead of crashing
-            }
-
-            // Small buffer between elements
-            this.y += 2;
-        }
-    }
-
-    renderHeading(token: marked.Tokens.Heading) {
-        const fontSizes = [26, 22, 18, 16, 14, 12];
-        const fontSize = fontSizes[token.depth - 1] || 12;
-        const lineSpacing = token.depth <= 2 ? 1.3 : 1.2;
-        
-        // Add extra space before heading
-        const spaceBefore = token.depth === 1 ? 15 : token.depth === 2 ? 12 : 8;
-        this.y += spaceBefore;
-        
-        this.doc.setFont('helvetica', 'bold');
-        this.doc.setFontSize(fontSize);
-        this.doc.setTextColor(0, 0, 0);
-        
-        // Split text properly to fit width
-        const cleanText = this.cleanText(token.text);
-        const lines = this.doc.splitTextToSize(cleanText, this.contentWidth);
-        const textHeight = this.getTextHeight(cleanText, fontSize, lineSpacing);
-        const totalHeight = lines.length * textHeight;
-        
-        // Check if we need a page break
-        this.checkPageBreak(totalHeight + 15);
-        
-        // Render heading
-        lines.forEach((line: string, index: number) => {
-            this.doc.text(line, this.margin, this.y);
-            this.y += textHeight;
-        });
-
-        // Add underline for h1 and h2
-        if (token.depth <= 2) {
-            this.y += 2;
-            this.doc.setDrawColor(200, 200, 200);
-            this.doc.setLineWidth(0.5);
-            this.doc.line(this.margin, this.y, this.margin + this.contentWidth, this.y);
-            this.y += 4;
-        }
-        
-        // Space after heading
-        this.y += 3;
-    }
-
-    renderParagraph(token: marked.Tokens.Paragraph) {
-        this.doc.setFont('times', 'normal');
-        this.doc.setFontSize(11);
-        this.doc.setTextColor(30, 30, 30);
-        
-        const cleanText = this.cleanText(token.text);
-        const lines = this.doc.splitTextToSize(cleanText, this.contentWidth);
-        const lineHeight = this.getTextHeight(cleanText, 11, 1.5);
-        const totalHeight = lines.length * lineHeight;
-        
-        // Smart page break - avoid orphaned lines
-        if (lines.length > 2 && this.y + lineHeight * 2 > this.pageHeight - this.margin - 15) {
-            this.checkPageBreak(totalHeight, true);
-        } else {
-            this.checkPageBreak(totalHeight);
-        }
-        
-        lines.forEach((line: string) => {
-            this.doc.text(line, this.margin, this.y, { 
-                align: 'left',
-                maxWidth: this.contentWidth 
-            });
-            this.y += lineHeight;
-        });
-        
-        this.y += 3; // Paragraph spacing
-    }
-
-    renderCode(token: marked.Tokens.Code) {
-        this.doc.setFont('courier', 'normal');
-        this.doc.setFontSize(9);
-        this.doc.setTextColor(50, 50, 50);
-        
-        const cleanText = this.cleanText(token.text);
-        const codeWidth = this.contentWidth - 10;
-        const lines = this.doc.splitTextToSize(cleanText, codeWidth);
-        const lineHeight = 4.5;
-        const padding = 4;
-        const totalHeight = (lines.length * lineHeight) + (padding * 2);
-        
-        this.checkPageBreak(totalHeight + 5);
-        
-        // Background box
-        this.doc.setFillColor(245, 245, 245);
-        this.doc.roundedRect(this.margin, this.y - padding, this.contentWidth, totalHeight, 2, 2, 'F');
-        
-        // Render code lines
-        lines.forEach((line: string) => {
-            this.doc.text(line, this.margin + 5, this.y);
-            this.y += lineHeight;
-        });
-        
-        this.y += padding + 2;
-        this.doc.setTextColor(0, 0, 0);
-    }
-
-    renderList(token: marked.Tokens.List) {
-        this.doc.setFont('times', 'normal');
-        this.doc.setFontSize(11);
-        this.doc.setTextColor(30, 30, 30);
-        
-        const indent = 8;
-        const lineHeight = this.getTextHeight('', 11, 1.4);
-
-        token.items.forEach((item, index) => {
-            const prefix = token.ordered ? `${index + 1}. ` : '• ';
-            const cleanText = this.cleanText(item.text);
-            const itemWidth = this.contentWidth - indent - 5;
-            const lines = this.doc.splitTextToSize(cleanText, itemWidth);
-            const totalHeight = lines.length * lineHeight;
-            
-            this.checkPageBreak(totalHeight + 2);
-            
-            // Render prefix
-            this.doc.text(prefix, this.margin + indent, this.y);
-            
-            // Render text lines
-            lines.forEach((line: string, lineIndex: number) => {
-                const xPos = lineIndex === 0 
-                    ? this.margin + indent + 7 
-                    : this.margin + indent + 7;
-                this.doc.text(line, xPos, this.y);
-                this.y += lineHeight;
-            });
-            
-            this.y += 1; // Small gap between items
-        });
-        
-        this.y += 2;
-    }
-
-    renderBlockquote(token: marked.Tokens.Blockquote) {
-        this.doc.setFont('times', 'italic');
-        this.doc.setFontSize(11);
-        this.doc.setTextColor(80, 80, 80);
-        
-        const indent = 10;
-        const cleanText = this.cleanText(token.text);
-        const quoteWidth = this.contentWidth - indent - 5;
-        const lines = this.doc.splitTextToSize(cleanText, quoteWidth);
-        const lineHeight = this.getTextHeight('', 11, 1.4);
-        const totalHeight = lines.length * lineHeight + 6;
-        
-        this.checkPageBreak(totalHeight);
-        
-        const startY = this.y;
-        
-        // Vertical accent line
-        this.doc.setDrawColor(180, 180, 180);
-        this.doc.setLineWidth(2);
-        this.doc.line(this.margin + 3, startY - 2, this.margin + 3, this.y + totalHeight - 4);
-        
-        // Render text
-        lines.forEach((line: string) => {
-            this.doc.text(line, this.margin + indent, this.y);
-            this.y += lineHeight;
-        });
-        
-        this.y += 4;
-        this.doc.setTextColor(0, 0, 0);
-    }
-
-    renderHorizontalRule() {
-        this.y += 6;
-        this.checkPageBreak(5);
-        this.doc.setDrawColor(200, 200, 200);
-        this.doc.setLineWidth(0.5);
-        this.doc.line(this.margin, this.y, this.margin + this.contentWidth, this.y);
-        this.y += 6;
-    }
-
-    renderTable(token: marked.Tokens.Table) {
-        // Simple table rendering
-        this.doc.setFont('times', 'normal');
-        this.doc.setFontSize(10);
-        
-        const colWidth = this.contentWidth / (token.header.length || 1);
-        const rowHeight = 7;
-        
-        // Header
-        this.checkPageBreak(rowHeight * (token.rows.length + 2));
-        this.doc.setFont('times', 'bold');
-        this.doc.setFillColor(240, 240, 240);
-        this.doc.rect(this.margin, this.y, this.contentWidth, rowHeight, 'F');
-        
-        token.header.forEach((cell, i) => {
-            const text = this.cleanText(cell.text);
-            this.doc.text(text, this.margin + (i * colWidth) + 2, this.y + 5);
-        });
-        this.y += rowHeight;
-        
-        // Rows
-        this.doc.setFont('times', 'normal');
-        token.rows.forEach((row) => {
-            row.forEach((cell, i) => {
-                const text = this.cleanText(cell.text);
-                this.doc.text(text, this.margin + (i * colWidth) + 2, this.y + 5);
-            });
-            this.y += rowHeight;
-        });
-        
-        this.y += 4;
-    }
-
-    // Clean markdown formatting from text
-    cleanText(text: string): string {
-        return text
-            .replace(/\*\*(.*?)\*\*/g, '$1') // Bold
-            .replace(/\*(.*?)\*/g, '$1') // Italic
-            .replace(/`(.*?)`/g, '$1') // Inline code
-            .replace(/\[(.*?)\]\(.*?\)/g, '$1') // Links
-            .replace(/#{1,6}\s/g, '') // Headings
-            .trim();
-    }
-
-    // Add page numbers and branding
-    addFooters() {
-        const totalPages = this.doc.getNumberOfPages();
-        
-        for (let i = 1; i <= totalPages; i++) {
-            this.doc.setPage(i);
-            this.doc.setFontSize(9);
-            this.doc.setTextColor(150, 150, 150);
-            this.doc.setFont('helvetica', 'normal');
-            
-            // Branding on left
-            this.doc.text('Generated by Pustakam AI', this.margin, this.pageHeight - 10);
-            
-            // Page number on right
-            const pageText = `Page ${i} of ${totalPages}`;
-            const textWidth = this.doc.getTextWidth(pageText);
-            this.doc.text(pageText, this.pageWidth - this.margin - textWidth, this.pageHeight - 10);
-        }
-    }
-
-    // Add cover page
-    addCoverPage(title: string, metadata: { words: number; modules: number; date: string }) {
-        this.doc.setFont('helvetica', 'bold');
-        this.doc.setFontSize(32);
-        this.doc.setTextColor(0, 0, 0);
-        
-        const titleLines = this.doc.splitTextToSize(title, this.contentWidth - 20);
-        const titleY = this.pageHeight / 3;
-        
-        titleLines.forEach((line: string, index: number) => {
-            const lineWidth = this.doc.getTextWidth(line);
-            this.doc.text(line, (this.pageWidth - lineWidth) / 2, titleY + (index * 15));
-        });
-        
-        // Metadata
-        this.doc.setFontSize(12);
-        this.doc.setFont('helvetica', 'normal');
-        this.doc.setTextColor(100, 100, 100);
-        
-        const metadataY = titleY + (titleLines.length * 15) + 30;
-        const metadataLines = [
-            `${metadata.words.toLocaleString()} words • ${metadata.modules} chapters`,
-            `Generated on ${metadata.date}`,
-            '',
-            'Powered by Pustakam AI'
-        ];
-        
-        metadataLines.forEach((line, index) => {
-            const lineWidth = this.doc.getTextWidth(line);
-            this.doc.text(line, (this.pageWidth - lineWidth) / 2, metadataY + (index * 8));
-        });
-        
-        this.doc.addPage();
-        this.y = this.margin;
-    }
-}
+// Configure marked for better output
+marked.setOptions({
+  breaks: true,
+  gfm: true,
+});
 
 export const pdfService = {
   async generatePdf(project: BookProject, onProgress: (progress: number) => void): Promise<void> {
@@ -389,48 +27,422 @@ export const pdfService = {
     onProgress(5);
 
     try {
-        // Parse Markdown
-        const tokens = marked.lexer(project.finalBook);
-        onProgress(20);
+      // Convert markdown to HTML
+      const htmlContent = marked.parse(project.finalBook);
+      onProgress(15);
 
-        // Initialize renderer
-        const renderer = new PdfRenderer();
-        onProgress(30);
+      // Create a temporary container
+      const container = document.createElement('div');
+      container.style.cssText = `
+        position: fixed;
+        left: -9999px;
+        top: 0;
+        width: 210mm;
+        padding: 20mm;
+        background: white;
+        font-family: 'Georgia', serif;
+        font-size: 12pt;
+        line-height: 1.6;
+        color: #000;
+      `;
 
-        // Add cover page
-        const totalWords = project.modules.reduce((sum, m) => sum + m.wordCount, 0);
-        renderer.addCoverPage(project.title, {
-            words: totalWords,
-            modules: project.modules.length,
-            date: new Date().toLocaleDateString('en-US', { 
-                year: 'numeric', 
-                month: 'long', 
-                day: 'numeric' 
-            })
-        });
-        onProgress(40);
+      // Add styled content
+      container.innerHTML = `
+        <style>
+          * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+          }
+          
+          body {
+            font-family: Georgia, serif;
+            font-size: 12pt;
+            line-height: 1.6;
+            color: #000;
+          }
 
-        // Render content with progress
-        await renderer.render(tokens, onProgress);
-        onProgress(85);
+          /* Cover Page */
+          .cover {
+            text-align: center;
+            padding: 100px 40px;
+            page-break-after: always;
+          }
+          
+          .cover h1 {
+            font-size: 32pt;
+            font-weight: bold;
+            margin-bottom: 40px;
+            color: #000;
+            line-height: 1.2;
+          }
+          
+          .cover .metadata {
+            font-size: 11pt;
+            color: #666;
+            margin-top: 60px;
+            line-height: 1.8;
+          }
+          
+          .cover .branding {
+            margin-top: 40px;
+            font-size: 10pt;
+            color: #999;
+          }
+
+          /* Content Styling */
+          h1 {
+            font-size: 24pt;
+            font-weight: bold;
+            margin: 30px 0 20px 0;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #333;
+            color: #000;
+            page-break-after: avoid;
+            line-height: 1.3;
+          }
+
+          h2 {
+            font-size: 20pt;
+            font-weight: bold;
+            margin: 25px 0 15px 0;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #666;
+            color: #111;
+            page-break-after: avoid;
+            line-height: 1.3;
+          }
+
+          h3 {
+            font-size: 16pt;
+            font-weight: bold;
+            margin: 20px 0 12px 0;
+            color: #222;
+            page-break-after: avoid;
+            line-height: 1.3;
+          }
+
+          h4 {
+            font-size: 14pt;
+            font-weight: bold;
+            margin: 18px 0 10px 0;
+            color: #333;
+            page-break-after: avoid;
+          }
+
+          h5, h6 {
+            font-size: 12pt;
+            font-weight: bold;
+            margin: 15px 0 8px 0;
+            color: #444;
+            page-break-after: avoid;
+          }
+
+          p {
+            margin: 12px 0;
+            text-align: justify;
+            orphans: 3;
+            widows: 3;
+          }
+
+          strong {
+            font-weight: bold;
+            color: #000;
+          }
+
+          em {
+            font-style: italic;
+          }
+
+          ul, ol {
+            margin: 12px 0 12px 20px;
+            padding-left: 20px;
+          }
+
+          li {
+            margin: 6px 0;
+            line-height: 1.5;
+          }
+
+          ul li {
+            list-style-type: disc;
+          }
+
+          ol li {
+            list-style-type: decimal;
+          }
+
+          blockquote {
+            margin: 20px 0;
+            padding: 15px 20px;
+            background: #f5f5f5;
+            border-left: 4px solid #666;
+            font-style: italic;
+            color: #333;
+            page-break-inside: avoid;
+          }
+
+          code {
+            font-family: 'Courier New', monospace;
+            font-size: 10pt;
+            background: #f5f5f5;
+            padding: 2px 6px;
+            border-radius: 3px;
+            color: #c7254e;
+          }
+
+          pre {
+            margin: 15px 0;
+            padding: 15px;
+            background: #f5f5f5;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            overflow-x: auto;
+            page-break-inside: avoid;
+          }
+
+          pre code {
+            background: none;
+            padding: 0;
+            font-size: 9pt;
+            color: #333;
+            display: block;
+            line-height: 1.4;
+          }
+
+          table {
+            width: 100%;
+            margin: 15px 0;
+            border-collapse: collapse;
+            page-break-inside: avoid;
+          }
+
+          th, td {
+            border: 1px solid #ddd;
+            padding: 8px 12px;
+            text-align: left;
+          }
+
+          th {
+            background: #f5f5f5;
+            font-weight: bold;
+          }
+
+          hr {
+            margin: 25px 0;
+            border: none;
+            border-top: 1px solid #ccc;
+          }
+
+          a {
+            color: #0066cc;
+            text-decoration: none;
+          }
+
+          img {
+            max-width: 100%;
+            height: auto;
+            margin: 15px 0;
+            page-break-inside: avoid;
+          }
+
+          /* Page break helpers */
+          .page-break {
+            page-break-before: always;
+          }
+
+          /* Print specific */
+          @media print {
+            .cover {
+              page-break-after: always;
+            }
+            
+            h1, h2, h3, h4, h5, h6 {
+              page-break-after: avoid;
+            }
+            
+            pre, blockquote, table {
+              page-break-inside: avoid;
+            }
+          }
+        </style>
+
+        <!-- Cover Page -->
+        <div class="cover">
+          <h1>${this.escapeHtml(project.title)}</h1>
+          <div class="metadata">
+            <div>${project.modules.reduce((sum, m) => sum + m.wordCount, 0).toLocaleString()} words</div>
+            <div>${project.modules.length} chapters</div>
+            <div>Generated on ${new Date().toLocaleDateString('en-US', { 
+              year: 'numeric', 
+              month: 'long', 
+              day: 'numeric' 
+            })}</div>
+          </div>
+          <div class="branding">Powered by Pustakam AI</div>
+        </div>
+
+        <!-- Book Content -->
+        <div class="content">
+          ${htmlContent}
+        </div>
+      `;
+
+      document.body.appendChild(container);
+      onProgress(30);
+
+      // Initialize PDF
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4',
+        compress: true,
+      });
+
+      // Page dimensions
+      const pageWidth = 210; // A4 width in mm
+      const pageHeight = 297; // A4 height in mm
+      const margin = 20;
+      const contentWidth = pageWidth - (margin * 2);
+      const contentHeight = pageHeight - (margin * 2);
+
+      // Get all sections (split by h1 or logical breaks)
+      const sections = this.splitIntoPages(container);
+      onProgress(40);
+
+      let currentPage = 0;
+      const totalSections = sections.length;
+
+      for (let i = 0; i < sections.length; i++) {
+        const section = sections[i];
         
-        // Add footers
-        renderer.addFooters();
-        onProgress(95);
+        try {
+          // Render section to canvas
+          const canvas = await html2canvas(section, {
+            scale: 2,
+            useCORS: true,
+            logging: false,
+            backgroundColor: '#ffffff',
+            width: section.scrollWidth,
+            height: section.scrollHeight,
+          });
 
-        // Save PDF
-        const safeTitle = project.title.replace(/[^a-z0-9\s-]/gi, '').replace(/\s+/g, '_').toLowerCase();
-        const timestamp = new Date().toISOString().slice(0, 10);
-        renderer.doc.save(`${safeTitle}_${timestamp}.pdf`);
+          const imgData = canvas.toDataURL('image/jpeg', 0.85);
+          const imgWidth = contentWidth;
+          const imgHeight = (canvas.height * imgWidth) / canvas.width;
 
-        onProgress(100);
+          // Handle multi-page sections
+          let heightLeft = imgHeight;
+          let position = 0;
+
+          while (heightLeft > 0) {
+            if (currentPage > 0) {
+              pdf.addPage();
+            }
+
+            pdf.addImage(
+              imgData,
+              'JPEG',
+              margin,
+              margin - position,
+              imgWidth,
+              imgHeight,
+              undefined,
+              'FAST'
+            );
+
+            heightLeft -= contentHeight;
+            position += contentHeight;
+            currentPage++;
+
+            // Add footer
+            pdf.setFontSize(9);
+            pdf.setTextColor(150, 150, 150);
+            pdf.text('Generated by Pustakam AI', margin, pageHeight - 10);
+            const pageText = `Page ${currentPage}`;
+            const pageTextWidth = pdf.getTextWidth(pageText);
+            pdf.text(pageText, pageWidth - margin - pageTextWidth, pageHeight - 10);
+          }
+
+          // Update progress
+          const progress = 40 + ((i + 1) / totalSections) * 50;
+          onProgress(Math.floor(progress));
+
+        } catch (error) {
+          console.error('Error rendering section:', error);
+        }
+      }
+
+      // Remove temporary container
+      document.body.removeChild(container);
+      onProgress(95);
+
+      // Save PDF
+      const safeTitle = project.title.replace(/[^a-z0-9\s-]/gi, '').replace(/\s+/g, '_').toLowerCase();
+      const timestamp = new Date().toISOString().slice(0, 10);
+      pdf.save(`${safeTitle}_${timestamp}.pdf`);
+
+      onProgress(100);
 
     } catch (error) {
-        console.error('Failed to generate PDF:', error);
-        alert('An error occurred while generating the PDF. Please try again.');
-        onProgress(0);
+      console.error('Failed to generate PDF:', error);
+      alert('Failed to generate PDF. Please try again or download as Markdown instead.');
+      onProgress(0);
     } finally {
-        isGenerating = false;
+      isGenerating = false;
     }
+  },
+
+  // Split content into manageable sections
+  splitIntoPages(container: HTMLElement): HTMLElement[] {
+    const sections: HTMLElement[] = [];
+    const content = container.querySelector('.content');
+    
+    if (!content) return [container];
+
+    // Split by major headings or every ~2 pages worth of content
+    const children = Array.from(content.children);
+    let currentSection = document.createElement('div');
+    currentSection.style.cssText = container.style.cssText;
+    let currentHeight = 0;
+    const maxHeight = 2000; // Approximate pixels per section
+
+    children.forEach((child) => {
+      const childHeight = (child as HTMLElement).offsetHeight || 200;
+      
+      // Start new section on h1 or when too tall
+      if ((child.tagName === 'H1' && currentSection.children.length > 0) || 
+          (currentHeight + childHeight > maxHeight && currentSection.children.length > 0)) {
+        sections.push(currentSection);
+        currentSection = document.createElement('div');
+        currentSection.style.cssText = container.style.cssText;
+        currentHeight = 0;
+      }
+
+      currentSection.appendChild(child.cloneNode(true));
+      currentHeight += childHeight;
+    });
+
+    if (currentSection.children.length > 0) {
+      sections.push(currentSection);
+    }
+
+    // Add cover separately
+    const cover = container.querySelector('.cover');
+    if (cover) {
+      const coverSection = document.createElement('div');
+      coverSection.style.cssText = container.style.cssText;
+      coverSection.appendChild(cover.cloneNode(true));
+      sections.unshift(coverSection);
+    }
+
+    return sections.length > 0 ? sections : [container];
+  },
+
+  // Escape HTML special characters
+  escapeHtml(text: string): string {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
   }
 };
