@@ -1,4 +1,4 @@
-// src/services/pdfService.ts - FIXED WITH PAGE BREAKS & NO BLUE LINE
+// src/services/pdfService.ts - ENHANCED VERSION
 import { BookProject } from '../types';
 
 let isGenerating = false;
@@ -22,25 +22,13 @@ async function loadPdfMake() {
     pdfMake = pdfMakeModule.default || pdfMakeModule;
     const fonts = pdfFontsModule.default || pdfFontsModule;
     
-    console.log('📚 Font module structure:', {
-      type: typeof fonts,
-      keys: Object.keys(fonts || {}),
-      hasPdfMake: !!fonts?.pdfMake,
-      hasVfs: !!fonts?.vfs,
-      directVfs: !!fonts?.pdfMake?.vfs,
-      isFunction: typeof fonts === 'function',
-      constructor: fonts?.constructor?.name
-    });
-    
-    // ULTRA AGGRESSIVE: Try EVERY possible way to get VFS
+    // VFS Detection
     let vfs = null;
     
     if (fonts?.pdfMake?.vfs) {
       vfs = fonts.pdfMake.vfs;
-      console.log('✓ Method 1: fonts.pdfMake.vfs');
     } else if (fonts?.vfs) {
       vfs = fonts.vfs;
-      console.log('✓ Method 2: fonts.vfs');
     } else if (typeof fonts === 'object' && fonts !== null) {
       const possibleVfs: any = {};
       for (const key in fonts) {
@@ -50,18 +38,15 @@ async function loadPdfMake() {
       }
       if (Object.keys(possibleVfs).length > 0) {
         vfs = possibleVfs;
-        console.log('✓ Method 3: Extracted VFS from fonts object');
       }
     }
     
     if (!vfs && pdfFontsModule?.pdfMake?.vfs) {
       vfs = pdfFontsModule.pdfMake.vfs;
-      console.log('✓ Method 4: pdfFontsModule.pdfMake.vfs');
     }
     
     if (!vfs && pdfFontsModule?.default?.pdfMake?.vfs) {
       vfs = pdfFontsModule.default.pdfMake.vfs;
-      console.log('✓ Method 5: pdfFontsModule.default.pdfMake.vfs');
     }
     
     if (!vfs && typeof fonts === 'object') {
@@ -76,12 +61,9 @@ async function loadPdfMake() {
         return null;
       };
       vfs = findVfs(fonts);
-      if (vfs) console.log('✓ Method 6: Deep search found VFS');
     }
     
     if (!vfs) {
-      console.error('❌ ALL VFS detection methods failed');
-      console.error('Full fonts object:', fonts);
       throw new Error('FONT_VFS_NOT_FOUND');
     }
     
@@ -89,11 +71,10 @@ async function loadPdfMake() {
     
     const vfsKeys = Object.keys(vfs);
     if (vfsKeys.length === 0) {
-      console.error('❌ VFS is empty');
       throw new Error('VFS_EMPTY');
     }
     
-    console.log('✓ VFS loaded with', vfsKeys.length, 'files:', vfsKeys.slice(0, 5).join(', '));
+    console.log('✓ VFS loaded with', vfsKeys.length, 'files');
     
     pdfMake.fonts = {
       Roboto: {
@@ -110,7 +91,6 @@ async function loadPdfMake() {
       }
     };
     
-    console.log('✓ Font definitions set');
     fontsLoaded = true;
     return pdfMake;
     
@@ -138,36 +118,115 @@ interface PDFContent {
 class PremiumPdfGenerator {
   private content: PDFContent[] = [];
   private styles: any;
-  private tocItems: { title: string; level: number }[] = [];
-  private hasEmojis = false;
-  private lastWasModule = false;
+  private tocItems: { title: string; level: number; page?: number }[] = [];
 
   constructor() {
     this.styles = {
-      coverTitle: { fontSize: 34, bold: true, alignment: 'center', margin: [0, 150, 0, 25], color: '#1a1a1a' },
-      coverSubtitle: { fontSize: 14, alignment: 'center', color: '#555555', margin: [0, 0, 0, 10] },
-      coverBrand: { fontSize: 11, alignment: 'center', color: '#888888', margin: [0, 80, 0, 0], italics: true },
-      tocTitle: { fontSize: 24, bold: true, margin: [0, 40, 0, 30], color: '#1a1a1a' },
-      tocH1: { fontSize: 13, bold: true, margin: [0, 12, 0, 6], color: '#2a2a2a' },
-      tocH2: { fontSize: 11, margin: [20, 6, 0, 4], color: '#4a5568' },
-      h1: { fontSize: 26, bold: true, margin: [0, 30, 0, 15], color: '#1a1a1a' },
-      h1Module: { fontSize: 26, bold: true, margin: [0, 0, 0, 15], color: '#1a1a1a' }, // No top margin for modules (they have page break)
-      h2: { fontSize: 19, bold: true, margin: [0, 24, 0, 12], color: '#2a2a2a' },
-      h3: { fontSize: 16, bold: true, margin: [0, 18, 0, 10], color: '#333333' },
-      h4: { fontSize: 14, bold: true, margin: [0, 15, 0, 8], color: '#444444' },
-      paragraph: { fontSize: 11, lineHeight: 1.8, alignment: 'justify', margin: [0, 0, 0, 14], color: '#2a2a2a' },
-      listItem: { fontSize: 11, lineHeight: 1.7, margin: [0, 5, 0, 5], color: '#2a2a2a' },
-      codeBlock: { font: 'Courier', fontSize: 9, margin: [0, 10, 0, 15], color: '#2d3748' },
-      blockquote: { fontSize: 11, italics: true, margin: [20, 15, 0, 15], color: '#4a5568' },
-      warning: { fontSize: 10, color: '#d97706', margin: [0, 20, 0, 10], italics: true }
+      // Cover page styles
+      coverTitle: { 
+        fontSize: 36, 
+        bold: true, 
+        alignment: 'center', 
+        margin: [0, 180, 0, 30], 
+        color: '#1a1a1a',
+        lineHeight: 1.3
+      },
+      coverSubtitle: { 
+        fontSize: 14, 
+        alignment: 'center', 
+        color: '#555555', 
+        margin: [0, 0, 0, 10] 
+      },
+      coverBrand: { 
+        fontSize: 11, 
+        alignment: 'center', 
+        color: '#888888', 
+        margin: [0, 100, 0, 0], 
+        italics: true 
+      },
+      
+      // TOC styles
+      tocTitle: { 
+        fontSize: 26, 
+        bold: true, 
+        margin: [0, 50, 0, 30], 
+        color: '#1a1a1a' 
+      },
+      tocH1: { 
+        fontSize: 13, 
+        bold: true, 
+        margin: [0, 14, 0, 8], 
+        color: '#2a2a2a' 
+      },
+      tocH2: { 
+        fontSize: 11, 
+        margin: [20, 8, 0, 6], 
+        color: '#4a5568' 
+      },
+      
+      // Content styles
+      h1Module: { 
+        fontSize: 28, 
+        bold: true, 
+        margin: [0, 0, 0, 20], 
+        color: '#1a1a1a',
+        lineHeight: 1.4
+      },
+      h2: { 
+        fontSize: 20, 
+        bold: true, 
+        margin: [0, 28, 0, 14], 
+        color: '#2a2a2a',
+        lineHeight: 1.3
+      },
+      h3: { 
+        fontSize: 17, 
+        bold: true, 
+        margin: [0, 22, 0, 12], 
+        color: '#333333',
+        lineHeight: 1.3
+      },
+      h4: { 
+        fontSize: 15, 
+        bold: true, 
+        margin: [0, 18, 0, 10], 
+        color: '#444444' 
+      },
+      
+      // Text styles
+      paragraph: { 
+        fontSize: 11.5, 
+        lineHeight: 1.8, 
+        alignment: 'justify', 
+        margin: [0, 0, 0, 16], 
+        color: '#2a2a2a' 
+      },
+      listItem: { 
+        fontSize: 11.5, 
+        lineHeight: 1.75, 
+        margin: [0, 6, 0, 6], 
+        color: '#2a2a2a' 
+      },
+      
+      // Special elements
+      codeBlock: { 
+        font: 'Courier', 
+        fontSize: 9.5, 
+        margin: [15, 12, 15, 16], 
+        color: '#2d3748',
+        background: '#f7fafc'
+      },
+      blockquote: { 
+        fontSize: 11, 
+        italics: true, 
+        margin: [25, 16, 0, 16], 
+        color: '#4a5568',
+        lineHeight: 1.7
+      },
     };
   }
 
   private cleanText(text: string): string {
-    if (/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu.test(text)) {
-      this.hasEmojis = true;
-    }
-
     return text
       .replace(/\*\*\*(.+?)\*\*\*/g, '$1')
       .replace(/\*\*(.+?)\*\*/g, '$1')
@@ -188,6 +247,7 @@ class PremiumPdfGenerator {
     const content: PDFContent[] = [];
     const lines = markdown.split('\n');
     let paragraphBuffer: string[] = [];
+    let isFirstModule = true;
 
     const flushParagraph = () => {
       if (paragraphBuffer.length > 0) {
@@ -205,7 +265,7 @@ class PremiumPdfGenerator {
         continue;
       }
 
-      // Check if this is a module heading (starts with "Module")
+      // Check if this is a module heading
       const isModuleHeading = trimmed.startsWith('# ') && 
                               this.cleanText(trimmed.substring(2)).toLowerCase().startsWith('module');
 
@@ -214,38 +274,45 @@ class PremiumPdfGenerator {
         const text = this.cleanText(trimmed.substring(2));
         this.tocItems.push({ title: text, level: 1 });
         
-        // Add page break BEFORE module headings
         if (isModuleHeading) {
-          content.push({ text: '', pageBreak: 'before' });
+          // Add page break BEFORE each module (except first)
+          if (!isFirstModule) {
+            content.push({ text: '', pageBreak: 'before' });
+          }
+          isFirstModule = false;
+          
           content.push({ text, style: 'h1Module' });
-          this.lastWasModule = true;
-        } else {
-          content.push({ text, style: 'h1' });
-          this.lastWasModule = false;
         }
       } else if (trimmed.startsWith('## ')) {
         flushParagraph();
         const text = this.cleanText(trimmed.substring(3));
         this.tocItems.push({ title: text, level: 2 });
         content.push({ text, style: 'h2' });
-        this.lastWasModule = false;
       } else if (trimmed.startsWith('### ')) {
         flushParagraph();
         content.push({ text: this.cleanText(trimmed.substring(4)), style: 'h3' });
-        this.lastWasModule = false;
       } else if (trimmed.startsWith('#### ')) {
         flushParagraph();
         content.push({ text: this.cleanText(trimmed.substring(5)), style: 'h4' });
-        this.lastWasModule = false;
       } else if (trimmed.match(/^[-*+]\s+/)) {
         flushParagraph();
-        content.push({ text: '• ' + this.cleanText(trimmed.replace(/^[-*+]\s+/, '')), style: 'listItem' });
-        this.lastWasModule = false;
+        content.push({ 
+          text: '• ' + this.cleanText(trimmed.replace(/^[-*+]\s+/, '')), 
+          style: 'listItem' 
+        });
       } else if (trimmed.match(/^\d+\.\s+/)) {
         flushParagraph();
         const num = trimmed.match(/^(\d+)\./)?.[1] || '';
-        content.push({ text: num + '. ' + this.cleanText(trimmed.replace(/^\d+\.\s+/, '')), style: 'listItem' });
-        this.lastWasModule = false;
+        content.push({ 
+          text: num + '. ' + this.cleanText(trimmed.replace(/^\d+\.\s+/, '')), 
+          style: 'listItem' 
+        });
+      } else if (trimmed.startsWith('>')) {
+        flushParagraph();
+        content.push({ 
+          text: this.cleanText(trimmed.substring(1).trim()), 
+          style: 'blockquote' 
+        });
       } else {
         const cleaned = this.cleanText(trimmed);
         if (cleaned) paragraphBuffer.push(cleaned);
@@ -258,30 +325,48 @@ class PremiumPdfGenerator {
 
   private createTableOfContents(): PDFContent[] {
     if (this.tocItems.length === 0) return [];
+    
     return [
       { text: 'Table of Contents', style: 'tocTitle' },
-      { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 515, y2: 0, lineWidth: 1, lineColor: '#cbd5e0' }], margin: [0, 0, 0, 20] },
-      ...this.tocItems.map((item, i) => ({ text: `${i + 1}. ${item.title}`, style: item.level === 1 ? 'tocH1' : 'tocH2' })),
+      { 
+        canvas: [{ 
+          type: 'line', 
+          x1: 0, y1: 0, 
+          x2: 515, y2: 0, 
+          lineWidth: 1.5, 
+          lineColor: '#cbd5e0' 
+        }], 
+        margin: [0, 0, 0, 25] 
+      },
+      ...this.tocItems.map((item, i) => ({
+        text: `${i + 1}. ${item.title}`,
+        style: item.level === 1 ? 'tocH1' : 'tocH2'
+      })),
       { text: '', pageBreak: 'after' }
     ];
   }
 
-  private createCoverPage(title: string, metadata: { words: number; modules: number; date: string }): PDFContent[] {
+  private createCoverPage(title: string, metadata: { 
+    words: number; 
+    modules: number; 
+    date: string;
+    provider?: string;
+    model?: string;
+  }): PDFContent[] {
     return [
-      // REMOVED: Blue decorative bar
-      // Simple elegant cover without the blue line
-      { text: title, style: 'coverTitle', margin: [0, 200, 0, 25] },
+      // Title
+      { text: title, style: 'coverTitle' },
       
-      // Divider (kept but subtle)
+      // Elegant divider
       {
         canvas: [{
           type: 'line',
-          x1: 120, y1: 0,
-          x2: 395, y2: 0,
+          x1: 100, y1: 0,
+          x2: 415, y2: 0,
           lineWidth: 0.5,
           lineColor: '#cbd5e0'
         }],
-        margin: [0, 20, 0, 20]
+        margin: [0, 25, 0, 25]
       },
       
       // Metadata
@@ -291,44 +376,69 @@ class PremiumPdfGenerator {
           {
             width: 'auto',
             stack: [
-              { text: `${metadata.words.toLocaleString()} words`, style: 'coverSubtitle' },
-              { text: `${metadata.modules} chapters`, style: 'coverSubtitle' },
-              { text: metadata.date, style: 'coverSubtitle', margin: [0, 10, 0, 0] }
+              { 
+                text: `${metadata.words.toLocaleString()} words`, 
+                style: 'coverSubtitle',
+                margin: [0, 0, 0, 8]
+              },
+              { 
+                text: `${metadata.modules} chapters`, 
+                style: 'coverSubtitle',
+                margin: [0, 0, 0, 8]
+              },
+              { 
+                text: metadata.date, 
+                style: 'coverSubtitle', 
+                margin: [0, 10, 0, 0] 
+              }
             ]
           },
           { width: '*', text: '' }
         ]
       },
       
+      // AI Model info (if available)
+      ...(metadata.provider && metadata.model ? [{
+        text: `Generated by ${metadata.provider} (${metadata.model})`,
+        style: { 
+          fontSize: 9, 
+          alignment: 'center', 
+          color: '#999999', 
+          margin: [0, 30, 0, 0],
+          italics: true
+        }
+      }] : []),
+      
       // Branding
-      { text: 'Generated by Pustakam AI', style: 'coverBrand' },
-      { text: '', pageBreak: 'after' }
-    ];
-  }
-
-  private createWarningPage(): PDFContent[] {
-    if (!this.hasEmojis) return [];
-    return [
-      { text: 'PDF Notice', style: 'tocTitle', margin: [0, 40, 0, 20] },
-      { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 515, y2: 0, lineWidth: 1, lineColor: '#fbbf24' }], margin: [0, 0, 0, 20] },
-      { text: '• Emojis removed for PDF compatibility. Download .md for full content.', style: 'warning', margin: [0, 0, 0, 15] },
-      { text: 'Recommendation: Use Markdown (.md) for complete content.', style: 'warning', margin: [0, 20, 0, 0], bold: true },
+      { text: 'Pustakam AI Book Engine', style: 'coverBrand' },
       { text: '', pageBreak: 'after' }
     ];
   }
 
   public async generate(project: BookProject, onProgress: (progress: number) => void): Promise<void> {
-    console.log('🎨 Starting PDF generation for:', project.title);
+    console.log('🎨 Starting enhanced PDF generation for:', project.title);
     onProgress(10);
     
     const pdfMakeLib = await loadPdfMake();
     onProgress(25);
 
     const totalWords = project.modules.reduce((sum, m) => sum + m.wordCount, 0);
+    
+    // Get AI provider info
+    const providerMatch = project.finalBook?.match(/\*\*Provider:\*\* (.+?) \((.+?)\)/);
+    const provider = providerMatch ? providerMatch[1] : undefined;
+    const model = providerMatch ? providerMatch[2] : undefined;
+    
     const coverContent = this.createCoverPage(project.title, {
       words: totalWords,
       modules: project.modules.length,
-      date: new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+      date: new Date().toLocaleDateString('en-US', { 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+      }),
+      provider,
+      model
     });
     
     onProgress(40);
@@ -336,32 +446,93 @@ class PremiumPdfGenerator {
     
     onProgress(60);
     const tocContent = this.createTableOfContents();
-    const warningContent = this.createWarningPage();
     
     onProgress(75);
-    this.content = [...coverContent, ...warningContent, ...tocContent, ...mainContent];
+    this.content = [...coverContent, ...tocContent, ...mainContent];
 
     const docDefinition: any = {
       content: this.content,
       styles: this.styles,
-      defaultStyle: { font: 'Roboto', fontSize: 11, color: '#2a2a2a' },
+      defaultStyle: { 
+        font: 'Roboto', 
+        fontSize: 11.5, 
+        color: '#2a2a2a' 
+      },
       pageSize: 'A4',
-      pageMargins: [65, 80, 65, 70],
-      header: (currentPage: number) => currentPage <= 3 ? {} : {
-        columns: [
-          { text: project.title, style: { fontSize: 9, color: '#718096', italics: true }, margin: [65, 20, 0, 0], width: '*' },
-          { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 60, y2: 0, lineWidth: 0.5, lineColor: '#cbd5e0' }], margin: [0, 25, 65, 0], width: 60 }
-        ]
+      pageMargins: [70, 85, 70, 75],
+      
+      // Enhanced header
+      header: (currentPage: number) => {
+        if (currentPage <= 2) return {}; // Skip cover and TOC
+        
+        return {
+          columns: [
+            { 
+              text: project.title, 
+              style: { 
+                fontSize: 9, 
+                color: '#718096', 
+                italics: true 
+              }, 
+              margin: [70, 25, 0, 0], 
+              width: '*' 
+            },
+            { 
+              canvas: [{ 
+                type: 'line', 
+                x1: 0, y1: 0, 
+                x2: 60, y2: 0, 
+                lineWidth: 0.5, 
+                lineColor: '#cbd5e0' 
+              }], 
+              margin: [0, 30, 70, 0], 
+              width: 60 
+            }
+          ]
+        };
       },
-      footer: (currentPage: number) => currentPage <= 3 ? {} : {
-        columns: [
-          { text: 'Pustakam AI', style: { fontSize: 8, color: '#a0aec0' }, margin: [65, 0, 0, 0] },
-          { text: `${currentPage - 3}`, alignment: 'center', style: { fontSize: 10, color: '#4a5568', bold: true } },
-          { text: '', margin: [0, 0, 65, 0] }
-        ],
-        margin: [0, 20, 0, 0]
+      
+      // Enhanced footer
+      footer: (currentPage: number, pageCount: number) => {
+        if (currentPage <= 2) return {}; // Skip cover and TOC
+        
+        const pageNumber = currentPage - 2; // Start counting from content pages
+        
+        return {
+          columns: [
+            { 
+              text: 'Pustakam AI', 
+              style: { 
+                fontSize: 8, 
+                color: '#a0aec0' 
+              }, 
+              margin: [70, 0, 0, 0] 
+            },
+            { 
+              text: `${pageNumber}`, 
+              alignment: 'center', 
+              style: { 
+                fontSize: 10, 
+                color: '#4a5568', 
+                bold: true 
+              } 
+            },
+            { 
+              text: '', 
+              margin: [0, 0, 70, 0] 
+            }
+          ],
+          margin: [0, 25, 0, 0]
+        };
       },
-      info: { title: project.title, author: 'Pustakam AI', creator: 'Pustakam Book Generator' }
+      
+      info: { 
+        title: project.title, 
+        author: 'Pustakam AI', 
+        creator: 'Pustakam Book Generator',
+        subject: project.goal,
+        keywords: 'AI, Book, Education'
+      }
     };
 
     onProgress(85);
@@ -370,7 +541,11 @@ class PremiumPdfGenerator {
     return new Promise((resolve, reject) => {
       try {
         const pdfDocGenerator = pdfMakeLib.createPdf(docDefinition);
-        const filename = `${project.title.replace(/[^a-z0-9\s-]/gi, '').replace(/\s+/g, '_').toLowerCase().substring(0, 50)}_${new Date().toISOString().slice(0, 10)}.pdf`;
+        const filename = `${project.title
+          .replace(/[^a-z0-9\s-]/gi, '')
+          .replace(/\s+/g, '_')
+          .toLowerCase()
+          .substring(0, 50)}_${new Date().toISOString().slice(0, 10)}.pdf`;
         
         pdfDocGenerator.download(filename, () => {
           console.log('✅ PDF downloaded:', filename);
@@ -407,14 +582,11 @@ export const pdfService = {
     } catch (error: any) {
       console.error('💥 PDF generation error:', error);
       
-      alert('⚠️ PDF Export Issue\n\n' +
-            '✓ Please download the Markdown (.md) version instead.\n' +
-            '✓ It contains the complete book content.\n\n' +
-            'The .md file works in any text editor or markdown viewer.\n\n' +
-            'If you need PDF specifically:\n' +
+      alert('PDF generation failed. Please try:\n\n' +
             '1. Hard refresh the page (Ctrl+Shift+R)\n' +
             '2. Clear browser cache\n' +
-            '3. Try again');
+            '3. Download Markdown (.md) version instead\n\n' +
+            'The .md file contains complete content.');
       
       onProgress(0);
     } finally {
