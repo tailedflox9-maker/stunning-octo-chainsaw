@@ -395,7 +395,7 @@ const EmbeddedProgressPanel = ({
                 onResume && (
                   <button
                     onClick={onResume}
-                    className="px-5 py-2.5 bg-green-600 hover:bg-green-700 rounded-lg text-white font-semibold transition-all shadow-lg hover:shadow-green-500/30 flex items-center gap-2"
+                    className="px-5 py-2.5 bg-green-600 hover:bg-green-700 rounded-lg text-white font-semibold transition-all flex items-center gap-2"
                     title="Resume generation from where you left off"
                   >
                     <Play className="w-4 h-4" />
@@ -405,7 +405,7 @@ const EmbeddedProgressPanel = ({
               ) : isGenerating && onPause && (
                 <button
                   onClick={onPause}
-                  className="px-5 py-2.5 bg-yellow-600 hover:bg-yellow-700 rounded-lg text-white font-semibold transition-all shadow-lg hover:shadow-yellow-500/30 flex items-center gap-2"
+                  className="px-5 py-2.5 bg-yellow-600 hover:bg-yellow-700 rounded-lg text-white font-semibold transition-all flex items-center gap-2"
                   title="Pause and save progress"
                 >
                   <Pause className="w-4 h-4" />
