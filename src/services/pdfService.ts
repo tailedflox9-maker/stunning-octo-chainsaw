@@ -228,13 +228,13 @@ class PremiumPdfGenerator {
       tableHeader: {
         fontSize: 11,
         bold: true,
-        color: '#ffffff',
-        fillColor: '#2a2a2a'
+        color: '#2a2a2a',
+        fillColor: '#f7fafc'
       },
       tableCell: {
         fontSize: 10.5,
         color: '#2a2a2a',
-        lineHeight: 1.5
+        lineHeight: 1.4
       }
     };
   }
@@ -283,35 +283,27 @@ class PremiumPdfGenerator {
               tableHeaders.map(h => ({ 
                 text: this.cleanText(h), 
                 style: 'tableHeader', 
-                fillColor: '#2a2a2a',
-                color: '#ffffff'
+                fillColor: '#f7fafc' 
               })),
-              ...tableRows.map((row, rowIndex) => 
+              ...tableRows.map(row => 
                 row.map(cell => ({ 
                   text: this.cleanText(cell), 
-                  style: 'tableCell',
-                  fillColor: rowIndex % 2 === 0 ? '#f7f7f7' : '#ffffff'
+                  style: 'tableCell' 
                 }))
               )
             ]
           },
           layout: {
-            hLineWidth: (i: number, node: any) => {
-              if (!node || !node.table) return 0.5;
-              return i === 0 || i === 1 || i === node.table.body.length ? 1 : 0.5;
-            },
+            hLineWidth: () => 0.5,
             vLineWidth: () => 0.5,
-            hLineColor: (i: number, node: any) => {
-              if (!node || !node.table) return '#e0e0e0';
-              return i === 0 || i === 1 ? '#2a2a2a' : '#e0e0e0';
-            },
-            vLineColor: () => '#e0e0e0',
-            paddingLeft: () => 10,
-            paddingRight: () => 10,
-            paddingTop: () => 8,
-            paddingBottom: () => 8
+            hLineColor: () => '#cbd5e0',
+            vLineColor: () => '#cbd5e0',
+            paddingLeft: () => 8,
+            paddingRight: () => 8,
+            paddingTop: () => 6,
+            paddingBottom: () => 6
           },
-          margin: [0, 15, 0, 20]
+          margin: [0, 10, 0, 15]
         });
         tableRows = [];
         tableHeaders = [];
@@ -359,21 +351,9 @@ class PremiumPdfGenerator {
         flushTable();
       }
 
-      // Check if this is a module heading - more aggressive detection
-      const headingText = this.cleanText(trimmed.substring(2)).toLowerCase();
-      const isModuleHeading = trimmed.startsWith('# ') && (
-        /^module\s+\d+/i.test(headingText) ||
-        headingText.includes('introduction to') ||
-        headingText.includes('cloud infrastructure') ||
-        headingText.includes('deployment strategies') ||
-        headingText.includes('distributed') ||
-        headingText.includes('orchestration') ||
-        headingText.includes('security and compliance') ||
-        headingText.includes('cost optimization') ||
-        headingText.includes('monitoring and observability') ||
-        headingText.includes('lifecycle management') ||
-        headingText.includes('advanced topics')
-      );
+      // Check if this is a module heading (# Module X:)
+      const isModuleHeading = trimmed.startsWith('# ') && 
+                              /^#\s+module\s+\d+/i.test(trimmed);
 
       if (trimmed.startsWith('# ')) {
         flushParagraph();
@@ -433,8 +413,26 @@ class PremiumPdfGenerator {
   }
 
   private createTableOfContents(): PDFContent[] {
-    // Skip TOC generation - the markdown already contains it
-    return [];
+    if (this.tocItems.length === 0) return [];
+    
+    return [
+      { text: 'Table of Contents', style: 'tocTitle' },
+      { 
+        canvas: [{ 
+          type: 'line', 
+          x1: 0, y1: 0, 
+          x2: 515, y2: 0, 
+          lineWidth: 1.5, 
+          lineColor: '#cbd5e0' 
+        }], 
+        margin: [0, 0, 0, 25] 
+      },
+      ...this.tocItems.map((item, i) => ({
+        text: `${i + 1}. ${item.title}`,
+        style: item.level === 1 ? 'tocH1' : 'tocH2'
+      })),
+      { text: '', pageBreak: 'after' }
+    ];
   }
 
   private createCoverPage(title: string, metadata: { 
@@ -552,9 +550,9 @@ class PremiumPdfGenerator {
       pageSize: 'A4',
       pageMargins: [70, 85, 70, 75],
       
-      // Enhanced header (simplified)
+      // Enhanced header
       header: (currentPage: number) => {
-        if (currentPage <= 1) return {}; // Skip cover page only
+        if (currentPage <= 2) return {}; // Skip cover and TOC
         
         return {
           columns: [
@@ -572,34 +570,40 @@ class PremiumPdfGenerator {
               canvas: [{ 
                 type: 'line', 
                 x1: 0, y1: 0, 
-                x2: 50, y2: 0, 
+                x2: 60, y2: 0, 
                 lineWidth: 0.5, 
                 lineColor: '#cbd5e0' 
               }], 
               margin: [0, 30, 70, 0], 
-              width: 50 
+              width: 60 
             }
           ]
         };
       },
       
-      // Enhanced footer (simplified)
+      // Enhanced footer
       footer: (currentPage: number, pageCount: number) => {
-        if (currentPage <= 1) return {}; // Skip cover page only
+        if (currentPage <= 2) return {}; // Skip cover and TOC
+        
+        const pageNumber = currentPage - 2; // Start counting from content pages
         
         return {
           columns: [
             { 
-              text: '', 
+              text: 'Pustakam AI', 
+              style: { 
+                fontSize: 8, 
+                color: '#a0aec0' 
+              }, 
               margin: [70, 0, 0, 0] 
             },
             { 
-              text: `${currentPage}`, 
+              text: `${pageNumber}`, 
               alignment: 'center', 
               style: { 
                 fontSize: 10, 
                 color: '#4a5568', 
-                bold: false 
+                bold: true 
               } 
             },
             { 
@@ -632,7 +636,7 @@ class PremiumPdfGenerator {
           .toLowerCase()
           .substring(0, 50)}_${new Date().toISOString().slice(0, 10)}.pdf`;
         
-        // Always show popup before download
+        // Show warning popup before download
         const hasEmojis = /[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu.test(
           project.finalBook || ''
         );
@@ -640,8 +644,7 @@ class PremiumPdfGenerator {
         const hasComplexFormatting = (project.finalBook || '').includes('```') || 
                                      (project.finalBook || '').includes('~~');
         
-        // Always show the popup (not just when warnings exist)
-        {
+        if (hasEmojis || hasComplexFormatting) {
           // Create custom warning popup
           const popup = document.createElement('div');
           popup.className = 'fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in';
@@ -660,22 +663,14 @@ class PremiumPdfGenerator {
               
               <div class="space-y-3 mb-6">
                 <p class="text-sm text-gray-300 leading-relaxed">
-                  Your PDF is ready to download!${hasEmojis || hasComplexFormatting ? ' Please note:' : ''}
+                  Your PDF is ready to download! Please note:
                 </p>
-                ${hasEmojis || hasComplexFormatting ? `
                 <ul class="space-y-2 text-sm text-gray-400">
                   ${hasEmojis ? '<li class="flex items-start gap-2"><span class="text-yellow-400 shrink-0">•</span><span>Emojis have been removed for PDF compatibility</span></li>' : ''}
                   ${hasComplexFormatting ? '<li class="flex items-start gap-2"><span class="text-yellow-400 shrink-0">•</span><span>Some advanced formatting may be simplified</span></li>' : ''}
                   <li class="flex items-start gap-2"><span class="text-green-400 shrink-0">✓</span><span>Tables and basic formatting are preserved</span></li>
                   <li class="flex items-start gap-2"><span class="text-blue-400 shrink-0">💡</span><span>For complete content, download the .md version</span></li>
                 </ul>
-                ` : `
-                <ul class="space-y-2 text-sm text-gray-400">
-                  <li class="flex items-start gap-2"><span class="text-green-400 shrink-0">✓</span><span>All formatting preserved</span></li>
-                  <li class="flex items-start gap-2"><span class="text-green-400 shrink-0">✓</span><span>Tables rendered correctly</span></li>
-                  <li class="flex items-start gap-2"><span class="text-blue-400 shrink-0">📄</span><span>Professional PDF ready to share</span></li>
-                </ul>
-                `}
               </div>
               
               <div class="flex gap-3">
@@ -708,6 +703,13 @@ class PremiumPdfGenerator {
               onProgress(100);
               resolve();
             });
+          });
+        } else {
+          // No warnings needed, download directly
+          pdfDocGenerator.download(filename, () => {
+            console.log('✅ PDF downloaded:', filename);
+            onProgress(100);
+            resolve();
           });
         }
       } catch (error) {
