@@ -4,7 +4,6 @@ import { Analytics } from '@vercel/analytics/react';
 import { Sidebar } from './components/Sidebar';
 import { InstallPrompt } from './components/InstallPrompt';
 import { SettingsModal } from './components/SettingsModal';
-import { useGenerationStats } from './components/GenerationProgressPanel';
 import { APISettings, ModelProvider } from './types';
 import { usePWA } from './hooks/usePWA';
 import { Menu, WifiOff } from 'lucide-react';
