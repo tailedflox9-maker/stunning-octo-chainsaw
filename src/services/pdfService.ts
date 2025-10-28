@@ -1,4 +1,4 @@
-// src/services/pdfService.ts - PREMIUM QUALITY VERSION
+// src/services/pdfService.ts - PREMIUM ELEGANT VERSION
 import { BookProject } from '../types';
 
 let isGenerating = false;
@@ -110,144 +110,113 @@ interface PDFContent {
   fillColor?: string;
   border?: boolean[];
   layout?: any;
+  stack?: any[];
+  absolutePosition?: any;
+  fontSize?: number;
+  bold?: boolean;
+  color?: string;
+  lineHeight?: number;
+  italics?: boolean;
+  characterSpacing?: number;
 }
 
 class PremiumPdfGenerator {
   private content: PDFContent[] = [];
   private styles: any;
-  private tocItems: { title: string; level: number; page?: number }[] = [];
 
   constructor() {
     this.styles = {
-      // Cover page styles - More elegant and spacious
+      // Cover page styles - Elegant and spacious
       coverTitle: { 
-        fontSize: 42, 
+        fontSize: 36, 
         bold: true, 
         alignment: 'center', 
-        margin: [0, 200, 0, 20], 
-        color: '#0F172A',
-        lineHeight: 1.2,
-        characterSpacing: 0.5
+        margin: [30, 0, 30, 0], 
+        color: '#1a202c',
+        lineHeight: 1.3,
+        characterSpacing: 1
       },
       coverSubtitle: { 
-        fontSize: 16, 
+        fontSize: 13, 
         alignment: 'center', 
-        color: '#475569', 
-        margin: [0, 0, 0, 12],
-        lineHeight: 1.5
-      },
-      coverMetadata: {
-        fontSize: 13,
-        alignment: 'center',
-        color: '#64748B',
-        margin: [0, 0, 0, 10]
-      },
-      coverBrand: { 
-        fontSize: 10, 
-        alignment: 'center', 
-        color: '#94A3B8', 
-        margin: [0, 120, 0, 0], 
-        italics: true,
-        letterSpacing: 1
+        color: '#4a5568', 
+        margin: [0, 0, 0, 8]
       },
       
-      // TOC styles - Cleaner hierarchy
-      tocTitle: { 
-        fontSize: 32, 
-        bold: true, 
-        margin: [0, 60, 0, 40], 
-        color: '#0F172A',
-        characterSpacing: 0.3
-      },
-      tocH1: { 
-        fontSize: 14, 
-        bold: true, 
-        margin: [0, 16, 0, 10], 
-        color: '#1E293B',
-        lineHeight: 1.4
-      },
-      tocH2: { 
-        fontSize: 12, 
-        margin: [24, 10, 0, 8], 
-        color: '#475569',
-        lineHeight: 1.3
-      },
-      
-      // Content styles - Better readability
+      // Content styles - Professional hierarchy
       h1Module: { 
-        fontSize: 28, 
+        fontSize: 26, 
         bold: true, 
-        margin: [0, 0, 0, 16], 
-        color: '#0F172A',
-        lineHeight: 1.3,
-        characterSpacing: 0.3
+        margin: [0, 0, 0, 18], 
+        color: '#1a202c',
+        lineHeight: 1.35,
+        characterSpacing: 0.5
       },
       h2: { 
-        fontSize: 20, 
+        fontSize: 18, 
         bold: true, 
-        margin: [0, 20, 0, 12], 
-        color: '#1E293B',
-        lineHeight: 1.3
+        margin: [0, 22, 0, 11], 
+        color: '#2d3748',
+        lineHeight: 1.35
       },
       h3: { 
-        fontSize: 17, 
-        bold: true, 
-        margin: [0, 16, 0, 10], 
-        color: '#334155',
-        lineHeight: 1.3
-      },
-      h4: { 
         fontSize: 15, 
         bold: true, 
-        margin: [0, 14, 0, 8], 
-        color: '#475569' 
+        margin: [0, 18, 0, 9], 
+        color: '#2d3748',
+        lineHeight: 1.35
+      },
+      h4: { 
+        fontSize: 13, 
+        bold: true, 
+        margin: [0, 15, 0, 8], 
+        color: '#4a5568' 
       },
       
-      // Text styles - Optimized for reading
+      // Text styles - Optimized readability
       paragraph: { 
-        fontSize: 11.5, 
-        lineHeight: 1.7, 
+        fontSize: 11, 
+        lineHeight: 1.75, 
         alignment: 'left', 
-        margin: [0, 0, 0, 12], 
-        color: '#1E293B'
+        margin: [0, 0, 0, 11], 
+        color: '#2d3748'
       },
       listItem: { 
-        fontSize: 11.5, 
-        lineHeight: 1.6, 
-        margin: [0, 4, 0, 4], 
-        color: '#1E293B'
+        fontSize: 11, 
+        lineHeight: 1.65, 
+        margin: [0, 3, 0, 3], 
+        color: '#2d3748'
       },
       
-      // Special elements - Better contrast
+      // Special elements
       codeBlock: { 
-        fontSize: 10, 
-        margin: [20, 14, 20, 18], 
-        color: '#334155',
-        background: '#F8FAFC',
-        fillColor: '#F8FAFC',
-        preserveLeadingSpaces: true
+        fontSize: 9.5, 
+        margin: [12, 10, 12, 10], 
+        color: '#2d3748',
+        background: '#f7fafc',
+        fillColor: '#f7fafc',
+        preserveLeadingSpaces: true,
+        lineHeight: 1.5
       },
       blockquote: { 
-        fontSize: 11.5, 
+        fontSize: 10.5, 
         italics: true, 
-        margin: [30, 18, 20, 18], 
-        color: '#475569',
-        lineHeight: 1.8
+        margin: [20, 10, 15, 10], 
+        color: '#4a5568',
+        lineHeight: 1.7
       },
       
-      // Table styles - More professional
+      // Table styles
       tableHeader: {
-        fontSize: 11.5,
+        fontSize: 10.5,
         bold: true,
-        color: '#0F172A',
-        fillColor: '#F1F5F9',
-        alignment: 'left'
+        color: '#1a202c',
+        fillColor: '#edf2f7'
       },
       tableCell: {
-        fontSize: 11,
-        color: '#334155',
-        lineHeight: 1.5,
-        alignment: 'left'
+        fontSize: 10,
+        color: '#2d3748',
+        lineHeight: 1.5
       }
     };
   }
@@ -279,63 +248,67 @@ class PremiumPdfGenerator {
     let tableHeaders: string[] = [];
     let inCodeBlock = false;
     let codeBuffer: string[] = [];
+    let skipToC = false;
+    let tocDepth = 0;
 
     const flushParagraph = () => {
       if (paragraphBuffer.length > 0) {
         const text = paragraphBuffer.join(' ').trim();
-        if (text) content.push({ text: this.cleanText(text), style: 'paragraph' });
+        if (text && !skipToC) content.push({ text: this.cleanText(text), style: 'paragraph' });
         paragraphBuffer = [];
       }
     };
 
     const flushCodeBlock = () => {
-      if (codeBuffer.length > 0) {
+      if (codeBuffer.length > 0 && !skipToC) {
         content.push({
           text: codeBuffer.join('\n'),
           style: 'codeBlock',
-          margin: [20, 14, 20, 18],
-          fillColor: '#F8FAFC'
+          margin: [12, 10, 12, 10],
+          fillColor: '#f7fafc'
         });
         codeBuffer = [];
       }
     };
 
     const flushTable = () => {
-      if (tableRows.length > 0 && tableHeaders.length > 0) {
+      if (tableRows.length > 0 && tableHeaders.length > 0 && !skipToC) {
         const colCount = tableHeaders.length;
-        const colWidth = Math.floor(515 / colCount);
+        const colWidths = Array(colCount).fill('*');
         
         content.push({
           table: {
             headerRows: 1,
-            widths: Array(colCount).fill(colWidth),
+            widths: colWidths,
             body: [
               tableHeaders.map(h => ({ 
                 text: this.cleanText(h), 
                 style: 'tableHeader',
-                fillColor: '#F1F5F9',
-                margin: [8, 8, 8, 8]
+                fillColor: '#edf2f7',
+                margin: [5, 5, 5, 5],
+                alignment: 'left'
               })),
               ...tableRows.map(row => 
                 row.map(cell => ({ 
                   text: this.cleanText(cell), 
                   style: 'tableCell',
-                  margin: [8, 6, 8, 6]
+                  margin: [5, 4, 5, 4],
+                  alignment: 'left'
                 }))
               )
             ]
           },
           layout: {
-            hLineWidth: () => 0.5,
+            hLineWidth: (i: number, node: any) => (i === 0 || i === 1 || i === node.table.body.length) ? 1 : 0.5,
             vLineWidth: () => 0.5,
-            hLineColor: () => '#E2E8F0',
-            vLineColor: () => '#E2E8F0',
-            paddingLeft: () => 0,
-            paddingRight: () => 0,
-            paddingTop: () => 0,
-            paddingBottom: () => 0
+            hLineColor: (i: number, node: any) => (i === 0 || i === 1 || i === node.table.body.length) ? '#cbd5e0' : '#e2e8f0',
+            vLineColor: () => '#e2e8f0',
+            paddingLeft: () => 5,
+            paddingRight: () => 5,
+            paddingTop: () => 4,
+            paddingBottom: () => 4
           },
-          margin: [0, 12, 0, 18]
+          margin: [0, 8, 0, 12]
         });
         tableRows = [];
         tableHeaders = [];
@@ -346,6 +319,21 @@ class PremiumPdfGenerator {
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
       const trimmed = line.trim();
+
+      // Detect ToC section (skip it)
+      if (trimmed.match(/^#{1,2}\s+(table of contents|contents)/i)) {
+        skipToC = true;
+        tocDepth = (trimmed.match(/^#+/) || [''])[0].length;
+        continue;
+      }
+
+      // Exit ToC when we hit a heading of same or higher level
+      if (skipToC && trimmed.match(/^#{1,2}\s+/)) {
+        const currentDepth = (trimmed.match(/^#+/) || [''])[0].length;
+        if (currentDepth <= tocDepth) {
+          skipToC = false;
+        }
+      }
 
       // Code block detection
       if (trimmed.startsWith('```')) {
@@ -364,7 +352,7 @@ class PremiumPdfGenerator {
         continue;
       }
 
-      if (!trimmed) {
+      if (!trimmed || skipToC) {
         flushParagraph();
         flushTable();
         continue;
@@ -404,7 +392,6 @@ class PremiumPdfGenerator {
       if (trimmed.startsWith('# ')) {
         flushParagraph();
         const text = this.cleanText(trimmed.substring(2));
-        this.tocItems.push({ title: text, level: 1 });
         
         if (isModuleHeading) {
           if (!isFirstModule) {
@@ -418,7 +405,6 @@ class PremiumPdfGenerator {
       } else if (trimmed.startsWith('## ')) {
         flushParagraph();
         const text = this.cleanText(trimmed.substring(3));
-        this.tocItems.push({ title: text, level: 2 });
         content.push({ text, style: 'h2' });
       } else if (trimmed.startsWith('### ')) {
         flushParagraph();
@@ -429,30 +415,39 @@ class PremiumPdfGenerator {
       } else if (trimmed.match(/^[-*+]\s+/)) {
         flushParagraph();
         content.push({ 
-          text: '•  ' + this.cleanText(trimmed.replace(/^[-*+]\s+/, '')), 
+          text: '• ' + this.cleanText(trimmed.replace(/^[-*+]\s+/, '')), 
           style: 'listItem',
-          margin: [12, 7, 0, 7]
+          margin: [10, 3, 0, 3]
         });
       } else if (trimmed.match(/^\d+\.\s+/)) {
         flushParagraph();
         const num = trimmed.match(/^(\d+)\./)?.[1] || '';
         content.push({ 
-          text: num + '.  ' + this.cleanText(trimmed.replace(/^\d+\.\s+/, '')), 
+          text: num + '. ' + this.cleanText(trimmed.replace(/^\d+\.\s+/, '')), 
           style: 'listItem',
-          margin: [12, 7, 0, 7]
+          margin: [10, 3, 0, 3]
         });
       } else if (trimmed.startsWith('>')) {
         flushParagraph();
-        content.push({ 
-          text: this.cleanText(trimmed.substring(1).trim()), 
-          style: 'blockquote',
-          canvas: [{
-            type: 'line',
-            x1: -10, y1: 0,
-            x2: -10, y2: 20,
-            lineWidth: 3,
-            lineColor: '#CBD5E0'
-          }]
+        content.push({
+          columns: [
+            {
+              width: 3,
+              canvas: [{
+                type: 'rect',
+                x: 0, y: 0,
+                w: 3, h: 20,
+                color: '#667eea'
+              }]
+            },
+            {
+              width: '*',
+              text: this.cleanText(trimmed.substring(1).trim()),
+              style: 'blockquote',
+              margin: [8, 0, 0, 0]
+            }
+          ],
+          margin: [15, 10, 15, 10]
         });
       } else {
         const cleaned = this.cleanText(trimmed);
@@ -466,11 +461,6 @@ class PremiumPdfGenerator {
     return content;
   }
 
-  private createTableOfContents(): PDFContent[] {
-    // Skip ToC generation - it's already in the markdown
-    return [];
-  }
-
   private createCoverPage(title: string, metadata: { 
     words: number; 
     modules: number; 
@@ -479,66 +469,91 @@ class PremiumPdfGenerator {
     model?: string;
   }): PDFContent[] {
     return [
-      // Title - centered and bold
-      { 
-        text: title, 
-        fontSize: 38,
-        bold: true,
-        alignment: 'center',
-        color: '#0F172A',
-        lineHeight: 1.3,
-        margin: [40, 250, 40, 40]
+      // Elegant top decoration
+      {
+        canvas: [
+          {
+            type: 'rect',
+            x: 0, y: 0,
+            w: 200, h: 2,
+            color: '#667eea'
+          }
+        ],
+        margin: [0, 60, 0, 0]
       },
       
-      // Simple horizontal line
+      // Title with elegant spacing
+      { 
+        text: title, 
+        style: 'coverTitle',
+        margin: [30, 180, 30, 20]
+      },
+      
+      // Subtle divider
       {
         canvas: [{
           type: 'line',
-          x1: 120, y1: 0,
-          x2: 395, y2: 0,
-          lineWidth: 1,
-          lineColor: '#CBD5E0'
+          x1: 140, y1: 0,
+          x2: 375, y2: 0,
+          lineWidth: 0.5,
+          lineColor: '#cbd5e0'
         }],
-        margin: [0, 0, 0, 40]
+        margin: [0, 0, 0, 30]
       },
       
-      // Simple metadata - centered
+      // Metadata with elegant presentation
       {
         stack: [
           { 
-            text: `${metadata.words.toLocaleString()} words  •  ${metadata.modules} chapters`, 
-            fontSize: 14,
+            text: `${metadata.words.toLocaleString()} WORDS  •  ${metadata.modules} CHAPTERS`, 
+            fontSize: 11,
             alignment: 'center',
-            color: '#64748B',
-            margin: [0, 0, 0, 12]
+            color: '#718096',
+            characterSpacing: 1,
+            margin: [0, 0, 0, 10]
           },
           { 
             text: metadata.date, 
-            fontSize: 13,
+            fontSize: 12,
             alignment: 'center',
-            color: '#94A3B8',
+            color: '#4a5568',
             margin: [0, 0, 0, 0]
           }
         ]
       },
       
-      // AI info - simple and clean
+      // AI info
       ...(metadata.provider && metadata.model ? [{
         text: `Generated with ${metadata.provider} ${metadata.model}`,
-        fontSize: 11,
+        fontSize: 10,
         alignment: 'center',
-        color: '#94A3B8',
+        color: '#a0aec0',
         italics: true,
-        margin: [0, 50, 0, 0]
+        margin: [0, 45, 0, 0]
       }] : []),
       
-      // Bottom branding - simple
+      // Bottom decoration
       {
-        text: 'Pustakam AI',
-        fontSize: 12,
+        canvas: [
+          {
+            type: 'rect',
+            x: 215, y: 0,
+            w: 85, h: 1.5,
+            color: '#667eea'
+          }
+        ],
+        margin: [0, 120, 0, 12]
+      },
+      
+      // Branding
+      {
+        text: 'PUSTAKAM AI',
+        fontSize: 10,
         alignment: 'center',
-        color: '#64748B',
-        margin: [0, 140, 0, 0]
+        color: '#667eea',
+        bold: true,
+        characterSpacing: 2,
+        margin: [0, 0, 0, 0]
       },
       
       { text: '', pageBreak: 'after' }
@@ -573,65 +588,62 @@ class PremiumPdfGenerator {
     onProgress(40);
     const mainContent = this.parseMarkdownToContent(project.finalBook || '');
     
-    onProgress(60);
-    const tocContent = this.createTableOfContents();
-    
     onProgress(75);
-    this.content = [...coverContent, ...tocContent, ...mainContent];
+    this.content = [...coverContent, ...mainContent];
 
     const docDefinition: any = {
       content: this.content,
       styles: this.styles,
       defaultStyle: { 
         font: 'Roboto', 
-        fontSize: 12, 
-        color: '#1E293B',
-        lineHeight: 1.6
+        fontSize: 11, 
+        color: '#2d3748',
+        lineHeight: 1.7
       },
       pageSize: 'A4',
-      pageMargins: [75, 90, 75, 80],
+      pageMargins: [65, 75, 65, 70],
       
       header: (currentPage: number) => {
-        if (currentPage <= 1) return {}; // Skip cover page
+        if (currentPage <= 1) return {};
         
         return {
           text: project.title,
-          fontSize: 9,
-          color: '#64748B',
+          fontSize: 8.5,
+          color: '#718096',
           italics: true,
-          margin: [75, 30, 75, 0]
+          margin: [65, 25, 65, 0]
         };
       },
       
       footer: (currentPage: number, pageCount: number) => {
-        if (currentPage <= 1) return {}; // Skip cover page
+        if (currentPage <= 1) return {};
         
-        const pageNumber = currentPage - 1; // Start counting from content pages
+        const pageNumber = currentPage - 1;
         
         return {
           columns: [
             { 
               text: 'Pustakam AI', 
-              fontSize: 8,
-              color: '#94A3B8',
-              margin: [75, 0, 0, 0],
+              fontSize: 7.5,
+              color: '#a0aec0',
+              margin: [65, 0, 0, 0],
               width: '*'
             },
             { 
               text: `${pageNumber}`, 
               alignment: 'center', 
-              fontSize: 11,
-              color: '#475569',
+              fontSize: 10,
+              color: '#4a5568',
               bold: true,
               width: 'auto'
             },
             { 
               text: '', 
-              margin: [0, 0, 75, 0],
+              margin: [0, 0, 65, 0],
               width: '*'
             }
           ],
-          margin: [0, 30, 0, 0]
+          margin: [0, 25, 0, 0]
         };
       },
       
@@ -668,8 +680,8 @@ class PremiumPdfGenerator {
         popup.innerHTML = `
           <div class="bg-[#1F1F1F] border border-[#2A2A2A] rounded-2xl shadow-2xl max-w-md w-full p-6 animate-fade-in-up">
             <div class="flex items-center gap-3 mb-4">
-              <div class="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center">
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-blue-400">
+              <div class="w-10 h-10 rounded-lg bg-purple-500/10 flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-purple-400">
                   <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
                   <polyline points="14 2 14 8 20 8"/>
                   <line x1="16" y1="13" x2="8" y2="13"/>
@@ -682,12 +694,12 @@ class PremiumPdfGenerator {
             
             <div class="space-y-3 mb-6">
               <p class="text-sm text-gray-300 leading-relaxed">
-                Your professionally formatted PDF is ready!
+                Your elegantly formatted PDF is ready for download!
               </p>
               <ul class="space-y-2 text-sm text-gray-400">
-                <li class="flex items-start gap-2"><span class="text-green-400 shrink-0">✓</span><span>Enhanced typography and spacing</span></li>
-                <li class="flex items-start gap-2"><span class="text-green-400 shrink-0">✓</span><span>Professional table formatting</span></li>
-                <li class="flex items-start gap-2"><span class="text-green-400 shrink-0">✓</span><span>Elegant cover and TOC</span></li>
+                <li class="flex items-start gap-2"><span class="text-green-400 shrink-0">✓</span><span>Refined typography & spacing</span></li>
+                <li class="flex items-start gap-2"><span class="text-green-400 shrink-0">✓</span><span>Professional table layout</span></li>
+                <li class="flex items-start gap-2"><span class="text-green-400 shrink-0">✓</span><span>Elegant cover design</span></li>
                 ${hasEmojis ? '<li class="flex items-start gap-2"><span class="text-yellow-400 shrink-0">•</span><span>Emojis removed for compatibility</span></li>' : ''}
                 ${hasComplexFormatting ? '<li class="flex items-start gap-2"><span class="text-yellow-400 shrink-0">•</span><span>Advanced formatting simplified</span></li>' : ''}
               </ul>
@@ -697,7 +709,7 @@ class PremiumPdfGenerator {
               <button id="cancel-pdf" class="flex-1 px-4 py-2.5 bg-white/5 border border-white/10 rounded-lg text-gray-300 hover:bg-white/10 hover:text-white font-medium transition-all">
                 Cancel
               </button>
-              <button id="download-pdf" class="flex-1 px-4 py-2.5 bg-blue-500 hover:bg-blue-600 rounded-lg text-white font-semibold transition-all shadow-lg">
+              <button id="download-pdf" class="flex-1 px-4 py-2.5 bg-purple-500 hover:bg-purple-600 rounded-lg text-white font-semibold transition-all shadow-lg">
                 Download PDF
               </button>
             </div>
