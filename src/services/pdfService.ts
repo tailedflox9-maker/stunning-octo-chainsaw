@@ -181,6 +181,7 @@ class ProfessionalPdfGenerator {
   constructor() {
     this.fontFamily = 'Roboto';
     this.styles = {
+      // Cover page styles (tweaked slightly for mono: tighter spacing)
       coverTitle: {
         fontSize: 28,
         bold: true,
@@ -198,6 +199,8 @@ class ProfessionalPdfGenerator {
         margin: [0, 0, 0, 4],
         lineHeight: 1.2
       },
+
+      // Content styles (adjusted for monospaced readability)
       h1Module: {
         fontSize: 26,
         bold: true,
@@ -226,6 +229,8 @@ class ProfessionalPdfGenerator {
         margin: [0, 15, 0, 8],
         color: '#4a5568'
       },
+
+      // Text styles (optimized for mono: wider lines)
       paragraph: {
         fontSize: 10,
         lineHeight: 1.5,
@@ -239,6 +244,8 @@ class ProfessionalPdfGenerator {
         margin: [0, 2, 0, 2],
         color: '#1a1a1a'
       },
+
+      // Special elements (code uses main font now for consistency)
       codeBlock: {
         fontSize: 9.5,
         margin: [12, 10, 12, 10],
@@ -255,16 +262,41 @@ class ProfessionalPdfGenerator {
         color: '#4a5568',
         lineHeight: 1.6
       },
+
+      // Table styles (UPDATED: Monochromatic)
       tableHeader: {
         fontSize: 10.5,
         bold: true,
-        color: '#000000',
-        fillColor: '#d1d5db'
+        color: '#ffffff',
+        fillColor: '#2d3748'
       },
       tableCell: {
         fontSize: 10,
-        color: '#1f2937',
+        color: '#1a1a1a',
         lineHeight: 1.4
+      },
+
+      // Disclaimer page styles
+      disclaimerTitle: {
+        fontSize: 24,
+        bold: true,
+        alignment: 'center',
+        color: '#4a5568',
+        margin: [0, 0, 0, 20]
+      },
+      disclaimerText: {
+        fontSize: 10,
+        lineHeight: 1.6,
+        alignment: 'justify',
+        color: '#2d3748',
+        margin: [0, 0, 0, 12]
+      },
+      disclaimerNote: {
+        fontSize: 9,
+        lineHeight: 1.5,
+        alignment: 'left',
+        color: '#4a5568',
+        margin: [0, 8, 0, 8]
       }
     };
   }
@@ -332,7 +364,8 @@ class ProfessionalPdfGenerator {
               tableHeaders.map(h => ({
                 text: this.cleanText(h),
                 style: 'tableHeader',
-                fillColor: '#d1d5db',
+                fillColor: '#2d3748', // Monochrome table header
+                color: '#ffffff',
                 margin: [5, 5, 5, 5],
                 alignment: 'left'
               })),
@@ -347,10 +380,14 @@ class ProfessionalPdfGenerator {
             ]
           },
           layout: {
-            hLineWidth: (i: number, node: any) => (i === 0 || i === 1 || i === node.table.body.length) ? 1 : 0.5,
+            hLineWidth: (i: number, node: any) => (i === 0 || i === 1 || i === node.table.body.length) ? 1.5 : 0.5,
             vLineWidth: () => 0.5,
-            hLineColor: (i: number, node: any) => (i === 0 || i === 1 || i === node.table.body.length) ? '#6b7280' : '#9ca3af',
-            vLineColor: () => '#9ca3af',
+            hLineColor: (i: number, node: any) => (i === 0 || i === 1 || i === node.table.body.length) ? '#1a202c' : '#cbd5e0',
+            vLineColor: () => '#cbd5e0',
+            fillColor: (rowIndex: number) => {
+              if (rowIndex === 0) return '#2d3748'; // Monochrome table header
+              return (rowIndex % 2 === 0) ? '#f7fafc' : '#ffffff'; // Alternating row colors
+            },
             paddingLeft: () => 5,
             paddingRight: () => 5,
             paddingTop: () => 4,
@@ -406,6 +443,7 @@ class ProfessionalPdfGenerator {
       if (trimmed.includes('|') && !inTable) {
         flushParagraph();
         const cells = trimmed.split('|').filter(c => c.trim()).map(c => c.trim());
+
         const nextLine = lines[i + 1]?.trim() || '';
         if (nextLine.match(/^\|?[\s\-:]+\|/)) {
           tableHeaders = cells;
@@ -435,6 +473,7 @@ class ProfessionalPdfGenerator {
       if (trimmed.startsWith('# ')) {
         flushParagraph();
         const text = this.cleanText(trimmed.substring(2));
+
         if (isModuleHeading) {
           if (!isFirstModule) {
             content.push({ text: '', pageBreak: 'before' });
@@ -459,15 +498,15 @@ class ProfessionalPdfGenerator {
         content.push({
           text: '• ' + this.cleanText(trimmed.replace(/^[-*+]\s+/, '')),
           style: 'listItem',
-          margin: [10, 3, 0, 3]
+          margin:
         });
       } else if (trimmed.match(/^\d+\.\s+/)) {
         flushParagraph();
-        const num = trimmed.match(/^(\d+)\./)?.[1] || '';
+        const num = trimmed.match(/^(\d+)\./)?. || '';
         content.push({
           text: num + '. ' + this.cleanText(trimmed.replace(/^\d+\.\s+/, '')),
           style: 'listItem',
-          margin: [10, 3, 0, 3]
+          margin:
         });
       } else if (trimmed.startsWith('>')) {
         flushParagraph();
@@ -486,10 +525,10 @@ class ProfessionalPdfGenerator {
               width: '*',
               text: this.cleanText(trimmed.substring(1).trim()),
               style: 'blockquote',
-              margin: [8, 0, 0, 0]
+              margin:
             }
           ],
-          margin: [15, 10, 15, 10]
+          margin:
         });
       } else {
         const cleaned = this.cleanText(trimmed);
@@ -503,135 +542,6 @@ class ProfessionalPdfGenerator {
     return content;
   }
 
-  private createDisclaimerPage(): PDFContent[] {
-    return [
-      { text: '', pageBreak: 'before' },
-      { text: '', margin: [0, 100, 0, 0] },
-      {
-        text: 'DISCLAIMER',
-        fontSize: 22,
-        bold: true,
-        alignment: 'center',
-        color: '#7c3aed',
-        margin: [0, 0, 0, 30],
-        characterSpacing: 2
-      },
-      {
-        text: 'AI-Generated Content Notice',
-        fontSize: 13,
-        bold: true,
-        alignment: 'center',
-        color: '#6b21a8',
-        margin: [0, 0, 0, 25]
-      },
-      {
-        text: 'This document has been generated using artificial intelligence technology. While every effort has been made to ensure accuracy and quality, please be aware of the following:',
-        fontSize: 10,
-        lineHeight: 1.6,
-        alignment: 'justify',
-        color: '#374151',
-        margin: [0, 0, 0, 20]
-      },
-      {
-        stack: [
-          {
-            text: '• Verification Recommended',
-            fontSize: 10.5,
-            bold: true,
-            color: '#7c3aed',
-            margin: [0, 0, 0, 5]
-          },
-          {
-            text: 'AI-generated content may contain inaccuracies, outdated information, or unintentional biases. We strongly recommend verifying critical information with authoritative sources before making decisions based on this content.',
-            fontSize: 10,
-            lineHeight: 1.5,
-            color: '#4b5563',
-            margin: [0, 0, 0, 15]
-          },
-          {
-            text: '• Educational Purpose',
-            fontSize: 10.5,
-            bold: true,
-            color: '#7c3aed',
-            margin: [0, 0, 0, 5]
-          },
-          {
-            text: 'This document is intended for educational and informational purposes only. It should not be considered professional advice in any field, including but not limited to legal, medical, financial, or technical matters.',
-            fontSize: 10,
-            lineHeight: 1.5,
-            color: '#4b5563',
-            margin: [0, 0, 0, 15]
-          },
-          {
-            text: '• No Warranty',
-            fontSize: 10.5,
-            bold: true,
-            color: '#7c3aed',
-            margin: [0, 0, 0, 5]
-          },
-          {
-            text: 'The content is provided "as is" without any warranties, express or implied. The creators and distributors of this document make no representations about the completeness, reliability, or accuracy of the information contained herein.',
-            fontSize: 10,
-            lineHeight: 1.5,
-            color: '#4b5563',
-            margin: [0, 0, 0, 15]
-          },
-          {
-            text: '• Limitation of Liability',
-            fontSize: 10.5,
-            bold: true,
-            color: '#7c3aed',
-            margin: [0, 0, 0, 5]
-          },
-          {
-            text: 'Under no circumstances shall the creators, contributors, or distributors be liable for any direct, indirect, incidental, special, or consequential damages arising from the use of this document or reliance on its content.',
-            fontSize: 10,
-            lineHeight: 1.5,
-            color: '#4b5563',
-            margin: [0, 0, 0, 25]
-          }
-        ]
-      },
-      {
-        canvas: [{
-          type: 'rect',
-          x: 50, y: 0,
-          w: 350, h: 1,
-          color: '#d1d5db'
-        }],
-        margin: [0, 0, 0, 20]
-      },
-      {
-        text: 'By using this document, you acknowledge that you have read and understood this disclaimer and agree to use the content at your own risk. Always consult with qualified professionals for specific advice related to your circumstances.',
-        fontSize: 9,
-        lineHeight: 1.5,
-        alignment: 'center',
-        color: '#6b7280',
-        italics: true,
-        margin: [30, 0, 30, 20]
-      },
-      {
-        text: 'Generated by Pustakam Engine | Powered by Advanced AI Technology',
-        fontSize: 9,
-        alignment: 'center',
-        color: '#7c3aed',
-        bold: true,
-        margin: [0, 20, 0, 0]
-      },
-      {
-        text: new Date().toLocaleDateString('en-US', {
-          year: 'numeric',
-          month: 'long',
-          day: 'numeric'
-        }),
-        fontSize: 8,
-        alignment: 'center',
-        color: '#9ca3af',
-        margin: [0, 5, 0, 0]
-      }
-    ];
-  }
-
   private createCoverPage(title: string, metadata: {
     words: number;
     modules: number;
@@ -640,24 +550,27 @@ class ProfessionalPdfGenerator {
     model?: string;
   }): PDFContent[] {
     return [
-      { text: '', margin: [0, 80, 0, 0] },
+      { text: '', margin: },
+
       {
         text: title,
         style: 'coverTitle',
-        margin: [0, 0, 0, 12]
+        margin:
       },
+
       {
         text: 'Generated by Pustakam Engine',
         fontSize: 11,
         color: '#666666',
-        margin: [0, 0, 0, 40]
+        margin:
       },
+
       {
         text: 'Abstract',
         fontSize: 11,
         bold: true,
         color: '#1a1a1a',
-        margin: [0, 0, 0, 8]
+        margin:
       },
       {
         text: `This comprehensive ${metadata.modules}-chapter document contains ${metadata.words.toLocaleString()} words of AI-generated content. Each section has been carefully structured to provide in-depth coverage of the topic with clear explanations and practical insights.`,
@@ -665,8 +578,9 @@ class ProfessionalPdfGenerator {
         lineHeight: 1.6,
         alignment: 'justify',
         color: '#1a1a1a',
-        margin: [0, 0, 0, 30]
+        margin:
       },
+
       {
         stack: [
           {
@@ -674,39 +588,41 @@ class ProfessionalPdfGenerator {
             fontSize: 11,
             bold: true,
             color: '#1a1a1a',
-            margin: [0, 0, 0, 8]
+            margin:
           },
           {
             columns: [
               { text: 'Word Count:', width: 80, fontSize: 9, color: '#666666' },
               { text: metadata.words.toLocaleString(), fontSize: 9, color: '#1a1a1a' }
             ],
-            margin: [0, 0, 0, 4]
+            margin:
           },
           {
             columns: [
               { text: 'Chapters:', width: 80, fontSize: 9, color: '#666666' },
               { text: metadata.modules.toString(), fontSize: 9, color: '#1a1a1a' }
             ],
-            margin: [0, 0, 0, 4]
+            margin:
           },
           {
             columns: [
               { text: 'Generated:', width: 80, fontSize: 9, color: '#666666' },
               { text: metadata.date, fontSize: 9, color: '#1a1a1a' }
             ],
-            margin: [0, 0, 0, 4]
+            margin:
           },
           ...(metadata.provider && metadata.model ? [{
             columns: [
               { text: 'AI Model:', width: 80, fontSize: 9, color: '#666666' },
               { text: `${metadata.provider} ${metadata.model}`, fontSize: 9, color: '#1a1a1a' }
             ],
-            margin: [0, 0, 0, 4]
+            margin:
           }] : [])
         ]
       },
-      { text: '', margin: [0, 0, 0, 80] },
+
+      { text: '', margin: },
+
       {
         stack: [
           {
@@ -717,20 +633,20 @@ class ProfessionalPdfGenerator {
               lineWidth: 1,
               lineColor: '#1a1a1a'
             }],
-            margin: [0, 0, 0, 12]
+            margin:
           },
           {
             text: 'Pustakam Engine',
             fontSize: 10,
             bold: true,
             color: '#1a1a1a',
-            margin: [0, 0, 0, 4]
+            margin:
           },
           {
             text: 'AI-Powered Knowledge Creation',
             fontSize: 9,
             color: '#666666',
-            margin: [0, 0, 0, 8]
+            margin:
           },
           {
             text: 'Tanmay Kalbande',
@@ -742,7 +658,120 @@ class ProfessionalPdfGenerator {
           }
         ]
       },
+
       { text: '', pageBreak: 'after' }
+    ];
+  }
+
+  private createDisclaimerPage(): PDFContent[] {
+    return [
+      { text: '', pageBreak: 'before' },
+      { text: '', margin: },
+
+      {
+        text: 'IMPORTANT DISCLAIMER',
+        style: 'disclaimerTitle'
+      },
+
+      {
+        canvas: [{
+          type: 'rect',
+          x: 150,
+          y: 0,
+          w: 100,
+          h: 2,
+          color: '#4a5568'
+        }],
+        margin:
+      },
+
+      {
+        text: 'AI-Generated Content Notice',
+        fontSize: 12,
+        bold: true,
+        color: '#2d3748',
+        margin:
+      },
+
+      {
+        text: 'This document has been entirely generated by artificial intelligence technology through the Pustakam Engine platform. While significant effort has been made to ensure accuracy and coherence, readers should be aware of the following important considerations:',
+        style: 'disclaimerText'
+      },
+
+      {
+        ul: [
+          'The content is produced by AI language models and may contain factual inaccuracies, outdated information, or logical inconsistencies.',
+          'Information should be independently verified before being used for critical decisions, academic citations, or professional purposes.',
+          'The AI may generate plausible-sounding but incorrect or fabricated information (known as "hallucinations").',
+          'Views and opinions expressed do not necessarily reflect those of the creators, developers, or any affiliated organizations.',
+          'This content should not be considered a substitute for professional advice in medical, legal, financial, or other specialized fields.'
+        ],
+        style: 'disclaimerNote',
+        margin:
+      },
+
+      {
+        text: 'Intellectual Property & Usage',
+        fontSize: 12,
+        bold: true,
+        color: '#2d3748',
+        margin:
+      },
+
+      {
+        text: 'This document is provided "as-is" for informational and educational purposes. Users are encouraged to fact-check, cross-reference, and critically evaluate all content. The Pustakam Engine serves as a knowledge exploration tool and starting point for research, not as a definitive source of truth.',
+        style: 'disclaimerText'
+      },
+
+      {
+        text: 'Quality Assurance',
+        fontSize: 12,
+        bold: true,
+        color: '#2d3748',
+        margin:
+      },
+
+      {
+        text: 'While the Pustakam Engine employs advanced AI models and formatting techniques to produce professional-quality documents, no warranty is made regarding completeness, reliability, or accuracy. Users assume full responsibility for how they use, interpret, and apply this content.',
+        style: 'disclaimerText'
+      },
+
+      {
+        canvas: [{
+          type: 'rect',
+          x: 0,
+          y: 0,
+          w: 515,
+          h: 80,
+          color: '#f7fafc'
+        }],
+        margin:
+      },
+
+      {
+        text: [
+          { text: 'Generated by: ', fontSize: 9, color: '#4a5568' },
+          { text: 'Pustakam Engine\n', fontSize: 9, bold: true, color: '#2d3748' },
+          { text: 'Date: ', fontSize: 9, color: '#4a5568' },
+          { text: new Date().toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+          }), fontSize: 9, color: '#2d3748' }
+        ],
+        absolutePosition: { x: 65, y: 655 }
+      },
+
+      {
+        text: 'For questions or concerns about this content, please refer to the Pustakam Engine documentation or contact the platform administrator.',
+        fontSize: 8,
+        color: '#718096',
+        alignment: 'center',
+        absolutePosition: { x: 65, y: 750 },
+        margin:
+      }
     ];
   }
 
@@ -757,11 +786,13 @@ class ProfessionalPdfGenerator {
     this.fontFamily = hasAptosMono ? 'Aptos-Mono' : 'Roboto';
 
     onProgress(25);
+
     const totalWords = project.modules.reduce((sum, m) => sum + m.wordCount, 0);
 
-    const providerMatch = project.finalBook?.match(/\*\*Provider:\*\* (.+?) $(.+?)$/);
-    const provider = providerMatch ? providerMatch[1] : undefined;
-    const model = providerMatch ? providerMatch[2] : undefined;
+    // Fixed the regex for providerMatch to correctly capture model in parentheses
+    const providerMatch = project.finalBook?.match(/\*\*Provider:\*\* (.+?) \((.+?)\)/);
+    const provider = providerMatch ? providerMatch : undefined;
+    const model = providerMatch ? providerMatch : undefined;
 
     const coverContent = this.createCoverPage(project.title, {
       words: totalWords,
@@ -775,10 +806,11 @@ class ProfessionalPdfGenerator {
       model
     });
 
-    const disclaimerContent = this.createDisclaimerPage();
-
     onProgress(40);
     const mainContent = this.parseMarkdownToContent(project.finalBook || '');
+
+    onProgress(60);
+    const disclaimerContent = this.createDisclaimerPage();
 
     onProgress(75);
     this.content = [...coverContent, ...mainContent, ...disclaimerContent];
@@ -793,9 +825,11 @@ class ProfessionalPdfGenerator {
         lineHeight: 1.5
       },
       pageSize: 'A4',
-      pageMargins: [65, 75, 65, 70],
+      pageMargins:,
+
       header: (currentPage: number) => {
         if (currentPage <= 1) return {};
+
         return {
           columns: [
             {
@@ -813,18 +847,20 @@ class ProfessionalPdfGenerator {
               width: 'auto'
             }
           ],
-          margin: [65, 22, 65, 0]
+          margin:
         };
       },
+
       footer: (currentPage: number, pageCount: number) => {
         if (currentPage <= 1) return {};
+
         return {
           columns: [
             {
               text: 'Pustakam Engine',
               fontSize: 7,
               color: '#999999',
-              margin: [65, 0, 0, 0],
+              margin:,
               width: '*'
             },
             {
@@ -832,13 +868,14 @@ class ProfessionalPdfGenerator {
               fontSize: 7,
               color: '#999999',
               alignment: 'right',
-              margin: [0, 0, 65, 0],
+              margin:,
               width: '*'
             }
           ],
-          margin: [0, 20, 0, 0]
+          margin:
         };
       },
+
       info: {
         title: project.title,
         author: 'Pustakam Engine - Tanmay Kalbande',
@@ -854,11 +891,12 @@ class ProfessionalPdfGenerator {
     return new Promise((resolve, reject) => {
       try {
         const pdfDocGenerator = pdfMakeLib.createPdf(docDefinition);
-        const filename = `\${project.title
+        // Fixed filename creation using template literals
+        const filename = `${project.title
           .replace(/[^a-z0-9\s-]/gi, '')
           .replace(/\s+/g, '_')
           .toLowerCase()
-          .substring(0, 50)}_\${new Date().toISOString().slice(0, 10)}.pdf`;
+          .substring(0, 50)}_${new Date().toISOString().slice(0, 10)}.pdf`;
 
         const hasEmojis = /[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu.test(
           project.finalBook || ''
@@ -892,6 +930,8 @@ class ProfessionalPdfGenerator {
                 <li class="flex items-start gap-2"><span class="text-green-400 shrink-0">✓</span><span>Clean, readable 10pt body text</span></li>
                 <li class="flex items-start gap-2"><span class="text-green-400 shrink-0">✓</span><span>Professional cover page design</span></li>
                 <li class="flex items-start gap-2"><span class="text-green-400 shrink-0">✓</span><span>Justified text alignment</span></li>
+                <li class="flex items-start gap-2"><span class="text-green-400 shrink-0">✓</span><span>Monochromatic table styling</span></li>
+                <li class="flex items-start gap-2"><span class="text-green-400 shrink-0">✓</span><span>Professional disclaimer page</span></li>
                 <li class="flex items-start gap-2"><span class="text-green-400 shrink-0">✓</span><span>${this.fontFamily} font for consistent monospaced style</span></li>
                 ${hasEmojis ? '<li class="flex items-start gap-2"><span class="text-yellow-400 shrink-0">•</span><span>Emojis removed for compatibility</span></li>' : ''}
                 ${hasComplexFormatting ? '<li class="flex items-start gap-2"><span class="text-yellow-400 shrink-0">•</span><span>Advanced formatting simplified</span></li>' : ''}
@@ -942,12 +982,15 @@ export const pdfService = {
       alert('A PDF is already being generated. Please wait.');
       return;
     }
+
     if (!project.finalBook) {
       alert('Book content is not available for PDF export.');
       return;
     }
+
     isGenerating = true;
     onProgress(5);
+
     try {
       const generator = new ProfessionalPdfGenerator();
       await generator.generate(project, onProgress);
