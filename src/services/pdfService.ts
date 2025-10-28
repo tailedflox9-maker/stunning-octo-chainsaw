@@ -1,4 +1,4 @@
-// src/services/pdfService.ts - ENHANCED PROFESSIONAL VERSION
+// src/services/pdfService.ts - ENHANCED PROFESSIONAL VERSION (Corrected)
 import { BookProject } from '../types';
 
 let isGenerating = false;
@@ -10,21 +10,21 @@ async function loadPdfMake() {
     console.log('📦 Using cached pdfMake');
     return pdfMake;
   }
-  
+
   try {
     console.log('🔄 Loading pdfMake modules...');
-    
+
     const [pdfMakeModule, pdfFontsModule] = await Promise.all([
       import('pdfmake/build/pdfmake'),
       import('pdfmake/build/vfs_fonts')
     ]);
-    
+
     pdfMake = pdfMakeModule.default || pdfMakeModule;
     const fonts = pdfFontsModule.default || pdfFontsModule;
-    
+
     // VFS Detection
     let vfs = null;
-    
+
     if (fonts?.pdfMake?.vfs) {
       vfs = fonts.pdfMake.vfs;
     } else if (fonts?.vfs) {
@@ -40,15 +40,15 @@ async function loadPdfMake() {
         vfs = possibleVfs;
       }
     }
-    
+
     if (!vfs && pdfFontsModule?.pdfMake?.vfs) {
       vfs = pdfFontsModule.pdfMake.vfs;
     }
-    
+
     if (!vfs && pdfFontsModule?.default?.pdfMake?.vfs) {
       vfs = pdfFontsModule.default.pdfMake.vfs;
     }
-    
+
     if (!vfs && typeof fonts === 'object') {
       const findVfs = (obj: any, depth = 0): any => {
         if (depth > 3) return null;
@@ -62,20 +62,20 @@ async function loadPdfMake() {
       };
       vfs = findVfs(fonts);
     }
-    
+
     if (!vfs) {
       throw new Error('FONT_VFS_NOT_FOUND');
     }
-    
+
     pdfMake.vfs = vfs;
-    
+
     const vfsKeys = Object.keys(vfs);
     if (vfsKeys.length === 0) {
       throw new Error('VFS_EMPTY');
     }
-    
+
     console.log('✓ VFS loaded with', vfsKeys.length, 'files');
-    
+
     pdfMake.fonts = {
       Roboto: {
         normal: 'Roboto-Regular.ttf',
@@ -84,10 +84,10 @@ async function loadPdfMake() {
         bolditalics: 'Roboto-MediumItalic.ttf'
       }
     };
-    
+
     fontsLoaded = true;
     return pdfMake;
-    
+
   } catch (error) {
     console.error('❌ pdfMake loading failed:', error);
     fontsLoaded = false;
@@ -143,23 +143,23 @@ class EnhancedPdfGenerator {
   constructor() {
     this.styles = {
       // Cover page styles - Premium elegance
-      coverTitle: { 
-        fontSize: 32, 
-        bold: true, 
-        alignment: 'left', 
-        margin: [0, 0, 0, 10], 
+      coverTitle: {
+        fontSize: 32,
+        bold: true,
+        alignment: 'left',
+        margin: [0, 0, 0, 10],
         color: '#0f172a',
         lineHeight: 1.15,
         characterSpacing: 0.5
       },
-      coverSubtitle: { 
-        fontSize: 14, 
-        alignment: 'left', 
+      coverSubtitle: {
+        fontSize: 14,
+        alignment: 'left',
         color: '#64748b',
         margin: [0, 0, 0, 6],
         lineHeight: 1.4
       },
-      
+
       // Table of Contents
       tocTitle: {
         fontSize: 22,
@@ -275,11 +275,11 @@ class EnhancedPdfGenerator {
   private parseInlineFormatting(text: string): any[] {
     const result: any[] = [];
     let currentPos = 0;
-    
+
     // Combined regex for bold, italic, code, and links
     const inlineRegex = /(\*\*\*(.+?)\*\*\*|\*\*(.+?)\*\*|\*(.+?)\*|__(.+?)__|_(.+?)_|`(.+?)`|\[(.+?)\]\((.+?)\))/g;
     let match;
-    
+
     while ((match = inlineRegex.exec(text)) !== null) {
       // Add text before match
       if (match.index > currentPos) {
@@ -303,12 +303,12 @@ class EnhancedPdfGenerator {
       
       currentPos = match.index + match[0].length;
     }
-    
+
     // Add remaining text
     if (currentPos < text.length) {
       result.push({ text: text.substring(currentPos) });
     }
-    
+
     return result.length > 0 ? result : [{ text }];
   }
 
@@ -319,11 +319,11 @@ class EnhancedPdfGenerator {
       .replace(/[\u{2600}-\u{26FF}]/gu, '')
       .replace(/[\u{2700}-\u{27BF}]/gu, '')
       .trim();
-    
+
     if (preserveFormatting) {
       return this.parseInlineFormatting(text);
     }
-    
+
     // Strip all markdown for plain text
     return text
       .replace(/\*\*\*(.+?)\*\*\*/g, '$1')
@@ -593,10 +593,10 @@ class EnhancedPdfGenerator {
               width: '*',
               text: this.cleanText(trimmed.substring(1).trim(), true),
               style: 'blockquote',
-              margin: [12, 0, 0, 0]
+              margin:
             }
           ],
-          margin: [20, 12, 20, 12]
+          margin:
         });
       } 
       // Regular paragraph
@@ -618,12 +618,12 @@ class EnhancedPdfGenerator {
 
   private createTableOfContents(): PDFContent[] {
     if (this.tocEntries.length === 0) return [];
-    
+
     const tocContent: PDFContent[] = [
       { text: 'Table of Contents', style: 'tocTitle' },
-      { text: '', margin: [0, 0, 0, 10] }
+      { text: '', margin: }
     ];
-    
+
     this.tocEntries.forEach(entry => {
       const style = entry.level === 1 ? 'tocLevel1' : 
                     entry.level === 2 ? 'tocLevel2' : 'tocLevel3';
@@ -632,18 +632,18 @@ class EnhancedPdfGenerator {
         text: entry.text,
         style: style,
         link: entry.id,
-        decoration: 'none',
+        // decoration: 'none', // <-- THIS LINE WAS REMOVED TO FIX THE ERROR
         color: entry.level === 1 ? '#1e293b' : '#475569'
       });
     });
-    
+
     tocContent.push({ text: '', pageBreak: 'after' });
     return tocContent;
   }
 
-  private createCoverPage(title: string, metadata: { 
-    words: number; 
-    modules: number; 
+  private createCoverPage(title: string, metadata: {
+    words: number;
+    modules: number;
     date: string;
     provider?: string;
     model?: string;
@@ -657,14 +657,14 @@ class EnhancedPdfGenerator {
           w: 515, h: 4,
           color: '#3b82f6'
         }],
-        margin: [0, 0, 0, 60]
+        margin:
       },
-      
+
       // Main title
       { 
         text: title, 
         style: 'coverTitle',
-        margin: [0, 0, 0, 8]
+        margin:
       },
       
       // Subtitle
@@ -672,7 +672,7 @@ class EnhancedPdfGenerator {
         text: 'AI-Generated Knowledge Document',
         fontSize: 12,
         color: '#64748b',
-        margin: [0, 0, 0, 50]
+        margin:
       },
       
       // Abstract section
@@ -681,7 +681,7 @@ class EnhancedPdfGenerator {
         fontSize: 12,
         bold: true,
         color: '#0f172a',
-        margin: [0, 0, 0, 10]
+        margin:
       },
       {
         text: `This comprehensive ${metadata.modules}-chapter document comprises ${metadata.words.toLocaleString()} words of structured AI-generated content. Each chapter provides detailed analysis and practical insights, designed for educational and professional use.`,
@@ -689,7 +689,7 @@ class EnhancedPdfGenerator {
         lineHeight: 1.7,
         alignment: 'justify',
         color: '#334155',
-        margin: [0, 0, 0, 35]
+        margin:
       },
       
       // Document metadata box
@@ -700,38 +700,38 @@ class EnhancedPdfGenerator {
             fontSize: 12,
             bold: true,
             color: '#0f172a',
-            margin: [0, 0, 0, 12]
+            margin:
           },
           {
             columns: [
               { text: 'Total Words:', width: 100, fontSize: 10, color: '#64748b', bold: true },
               { text: metadata.words.toLocaleString(), fontSize: 10, color: '#1e293b' }
             ],
-            margin: [0, 0, 0, 6]
+            margin:
           },
           {
             columns: [
               { text: 'Chapters:', width: 100, fontSize: 10, color: '#64748b', bold: true },
               { text: metadata.modules.toString(), fontSize: 10, color: '#1e293b' }
             ],
-            margin: [0, 0, 0, 6]
+            margin:
           },
           {
             columns: [
               { text: 'Generated:', width: 100, fontSize: 10, color: '#64748b', bold: true },
               { text: metadata.date, fontSize: 10, color: '#1e293b' }
             ],
-            margin: [0, 0, 0, 6]
+            margin:
           },
           ...(metadata.provider && metadata.model ? [{
             columns: [
               { text: 'AI Model:', width: 100, fontSize: 10, color: '#64748b', bold: true },
               { text: `${metadata.provider} (${metadata.model})`, fontSize: 10, color: '#1e293b' }
             ],
-            margin: [0, 0, 0, 6]
+            margin:
           }] : [])
         ],
-        margin: [0, 0, 0, 50]
+        margin:
       },
       
       // Footer section
@@ -743,26 +743,26 @@ class EnhancedPdfGenerator {
           lineWidth: 2,
           lineColor: '#3b82f6'
         }],
-        margin: [0, 0, 0, 15]
+        margin:
       },
       {
         text: 'Pustakam Engine',
         fontSize: 11,
         bold: true,
         color: '#0f172a',
-        margin: [0, 0, 0, 5]
+        margin:
       },
       {
         text: 'AI-Powered Knowledge Creation Platform',
         fontSize: 9,
         color: '#64748b',
-        margin: [0, 0, 0, 10]
+        margin:
       },
       {
         text: 'Created by Tanmay Kalbande',
         fontSize: 9,
         color: '#475569',
-        margin: [0, 0, 0, 4]
+        margin:
       },
       {
         text: 'linkedin.com/in/tanmay-kalbande',
@@ -779,16 +779,16 @@ class EnhancedPdfGenerator {
   public async generate(project: BookProject, onProgress: (progress: number) => void): Promise<void> {
     console.log('🎨 Starting enhanced PDF generation for:', project.title);
     onProgress(10);
-    
+
     const pdfMakeLib = await loadPdfMake();
     onProgress(25);
 
     const totalWords = project.modules.reduce((sum, m) => sum + m.wordCount, 0);
-    
+
     const providerMatch = project.finalBook?.match(/\*\*Provider:\*\* (.+?) \((.+?)\)/);
-    const provider = providerMatch ? providerMatch[1] : undefined;
-    const model = providerMatch ? providerMatch[2] : undefined;
-    
+    const provider = providerMatch ? providerMatch : undefined;
+    const model = providerMatch ? providerMatch : undefined;
+
     const coverContent = this.createCoverPage(project.title, {
       words: totalWords,
       modules: project.modules.length,
@@ -800,13 +800,13 @@ class EnhancedPdfGenerator {
       provider,
       model
     });
-    
+
     onProgress(40);
     const mainContent = this.parseMarkdownToContent(project.finalBook || '');
-    
+
     onProgress(60);
     const tocContent = this.createTableOfContents();
-    
+
     onProgress(75);
     this.content = [...coverContent, ...tocContent, ...mainContent];
 
@@ -820,7 +820,7 @@ class EnhancedPdfGenerator {
         lineHeight: 1.7
       },
       pageSize: 'A4',
-      pageMargins: [70, 80, 70, 75],
+      pageMargins:,
       
       header: (currentPage: number) => {
         if (currentPage <= 2) return {}; // Skip cover + ToC
@@ -842,7 +842,7 @@ class EnhancedPdfGenerator {
               width: 'auto'
             }
           ],
-          margin: [70, 25, 70, 0]
+          margin:
         };
       },
       
@@ -855,7 +855,7 @@ class EnhancedPdfGenerator {
               text: 'Pustakam Engine', 
               fontSize: 8,
               color: '#94a3b8',
-              margin: [70, 0, 0, 0],
+              margin:,
               width: '*'
             },
             { 
@@ -863,11 +863,11 @@ class EnhancedPdfGenerator {
               fontSize: 8,
               color: '#94a3b8',
               alignment: 'right',
-              margin: [0, 0, 70, 0],
+              margin:,
               width: '*'
             }
           ],
-          margin: [0, 22, 0, 0]
+          margin:
         };
       },
       
