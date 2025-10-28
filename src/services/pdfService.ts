@@ -1,4 +1,4 @@
-// src/services/pdfService.ts - PROFESSIONAL ACADEMIC VERSION (UPDATED)
+// src/services/pdfService.ts - PROFESSIONAL ACADEMIC VERSION (UPDATED - FIXED VFS FALLBACK)
 import { BookProject } from '../types';
 
 let isGenerating = false;
@@ -35,23 +35,25 @@ async function loadPdfMake() {
     }
     
     if (!vfs) {
-      // Fallback: Minimal Roboto VFS stub if detection fails (prevents total failure)
-      vfs = {
-        'Roboto-Regular.ttf': 'AAEAAAA...[truncated base64 for Roboto-Regular]',
-        'Roboto-Medium.ttf': 'AAEAAAA...[truncated base64 for Roboto-Medium]',
-        'Roboto-Italic.ttf': 'AAEAAAA...[truncated base64 for Roboto-Italic]',
-        'Roboto-MediumItalic.ttf': 'AAEAAAA...[truncated base64 for Roboto-MediumItalic]'
-      };
-      console.warn('⚠️ Using fallback VFS - consider updating pdfMake import');
+      throw new Error('FONT_VFS_NOT_FOUND: VFS not found in pdfFonts module. Ensure pdfmake/build/vfs_fonts.js is correctly imported and contains valid base64 font data. Check your bundler configuration (e.g., webpack may need special handling for vfs_fonts).');
+    }
+    
+    // Validate VFS has required font files
+    const requiredFonts = ['Roboto-Regular.ttf', 'Roboto-Medium.ttf', 'Roboto-Italic.ttf', 'Roboto-MediumItalic.ttf'];
+    const missingFonts = requiredFonts.filter(font => !vfs[font]);
+    if (missingFonts.length > 0) {
+      throw new Error(`VFS_MISSING_FONTS: Required fonts not found in VFS: ${missingFonts.join(', ')}. Verify vfs_fonts.js includes Roboto fonts.`);
+    }
+    
+    // Quick buffer length check for first font to catch truncated data early
+    const sampleFontData = vfs['Roboto-Regular.ttf'];
+    if (typeof sampleFontData === 'string' && sampleFontData.length < 10000) {  // Rough check: real TTF base64 is ~200kB+
+      throw new Error('VFS_TRUNCATED_DATA: Font data appears truncated (too short). Ensure full vfs_fonts.js is loaded without bundler truncation.');
     }
     
     pdfMake.vfs = vfs;
     
     const vfsKeys = Object.keys(vfs);
-    if (vfsKeys.length === 0) {
-      throw new Error('VFS_EMPTY');
-    }
-    
     console.log('✓ VFS loaded with', vfsKeys.length, 'files');
     
     pdfMake.fonts = {
@@ -61,7 +63,6 @@ async function loadPdfMake() {
         italics: 'Roboto-Italic.ttf',
         bolditalics: 'Roboto-MediumItalic.ttf'
       }
-      // Note: For monospace, add custom font loading if needed (e.g., via worker)
     };
     
     fontsLoaded = true;
@@ -222,7 +223,7 @@ class ProfessionalPdfGenerator {
     let lastIndex = 0;
     let match;
 
-    // Prioritize bold > italic > links to avoid overlap
+    // Handle bold
     while ((match = boldRegex.exec(text)) !== null) {
       if (match.index > lastIndex) {
         segments.push(text.substring(lastIndex, match.index));
@@ -231,30 +232,25 @@ class ProfessionalPdfGenerator {
       lastIndex = match.index + match[0].length;
     }
 
-    // Reset for italics (simplified; in prod, use a stack-based parser)
-    text = text.replace(boldRegex, (m, p1) => `__BOLD__${p1}__BOLD__`);  // Temp placeholder
-    while ((match = italicRegex.exec(text)) !== null) {
+    // Handle italics (simple, assumes no overlap with bold for now)
+    let italicText = text;
+    lastIndex = 0;
+    while ((match = italicRegex.exec(italicText)) !== null) {
       if (match.index > lastIndex) {
-        const plain = text.substring(lastIndex, match.index).replace(/__BOLD__(.+?)__BOLD__/g, (m, p1) => ({ text: p1, bold: true }));
-        segments.push(plain);
+        segments.push(italicText.substring(lastIndex, match.index));
       }
-      // Skip if inside bold placeholder
-      if (!match[0].includes('__BOLD__')) {
-        segments.push({ text: match[1], italics: true });
-      }
+      segments.push({ text: match[1], italics: true });
       lastIndex = match.index + match[0].length;
     }
 
-    if (lastIndex < text.length) {
-      segments.push(text.substring(lastIndex).replace(/__BOLD__(.+?)__BOLD__/g, (m, p1) => ({ text: p1, bold: true })));
+    // Handle links (simplified)
+    // For production, use a full parser like markdown-it
+
+    // Fallback to plain if no segments or simple text
+    if (segments.length === 0) {
+      return [this.cleanText(text)];
     }
-
-    // Handle links similarly (simplified)
-    // For full impl, use a library like 'markdown-it'
-
-    // Fallback to plain if no segments
-    if (segments.length === 0) return [this.cleanText(text)];
-    return segments;
+    return segments.filter(s => s);  // Remove empty
   }
 
   private cleanText(text: string): string {
@@ -287,7 +283,7 @@ class ProfessionalPdfGenerator {
         const text = paragraphBuffer.join(' ').trim();
         if (text && !skipToC) {
           const inlineContent = this.parseInlineMarkdown(text);
-          content.push({ text: inlineContent, style: 'paragraph' });
+          content.push({ text: inlineContent.length > 1 ? inlineContent : inlineContent[0], style: 'paragraph' });
         }
         paragraphBuffer = [];
       }
@@ -312,8 +308,8 @@ class ProfessionalPdfGenerator {
         
         // Improved: Normalize rows for misalignment
         const normalizedRows = tableRows.map(row => {
-          const normalized = row.slice(0, colCount).concat(Array(colCount - row.length).fill(''));
-          return normalized;
+          while (row.length < colCount) row.push('');  // Pad short rows
+          return row.slice(0, colCount);  // Trim long rows
         });
         
         content.push({
@@ -323,7 +319,7 @@ class ProfessionalPdfGenerator {
             dontBreakRows: true,  // Improved: Prevent row breaks
             body: [
               tableHeaders.map(h => ({ 
-                text: this.parseInlineMarkdown(this.cleanText(h)), 
+                text: Array.isArray(this.parseInlineMarkdown(this.cleanText(h))) ? this.parseInlineMarkdown(this.cleanText(h)) : this.parseInlineMarkdown(this.cleanText(h))[0],
                 style: 'tableHeader',
                 fillColor: '#edf2f7',
                 margin: [5, 5, 5, 5],
@@ -331,7 +327,7 @@ class ProfessionalPdfGenerator {
               })),
               ...normalizedRows.map(row => 
                 row.map(cell => ({ 
-                  text: this.parseInlineMarkdown(this.cleanText(cell)), 
+                  text: Array.isArray(this.parseInlineMarkdown(this.cleanText(cell))) ? this.parseInlineMarkdown(this.cleanText(cell)) : this.parseInlineMarkdown(this.cleanText(cell))[0],
                   style: 'tableCell',
                   margin: [5, 4, 5, 4],
                   alignment: 'left'
@@ -357,29 +353,26 @@ class ProfessionalPdfGenerator {
       }
     };
 
-    const addListItem = (line: string, isOrdered: boolean, indent: number) => {
+    // Simplified list handling (non-nested for now; ul/ol support)
+    const addList = (line: string, isOrdered: boolean) => {
+      flushParagraph();
+      flushTable();
       const text = this.cleanText(line.replace(/^[-*+]\s+|\d+\.\s+/g, ''));
       const inlineContent = this.parseInlineMarkdown(text);
-      const item = { text: inlineContent, style: 'listItem', margin: [indent * 10, 2, 0, 2] };
-      
-      if (isOrdered) {
-        if (!content[content.length - 1]?.ol) {
-          content.push({ ol: [] });
-        }
-        content[content.length - 1].ol!.push(item);
+      const itemText = Array.isArray(inlineContent) ? inlineContent : [inlineContent];
+      const listType = isOrdered ? 'ol' : 'ul';
+      if (content.length === 0 || !content[content.length - 1][listType]) {
+        content.push({ [listType]: [{ text: itemText, style: 'listItem', margin: [10, 3, 0, 3] }] });
       } else {
-        if (!content[content.length - 1]?.ul) {
-          content.push({ ul: [] });
-        }
-        content[content.length - 1].ul!.push(item);
+        content[content.length - 1][listType]!.push({ text: itemText, style: 'listItem', margin: [10, 3, 0, 3] });
       }
     };
 
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
       const trimmed = line.trim();
-      const leadingSpaces = line.length - line.trimStart().length;
-      const currentIndentLevel = Math.floor(leadingSpaces / 2);  // 2 spaces per indent
+      const leadingSpaces = (line.match(/^\s*/) || [''])[0].length;
+      const currentIndentLevel = Math.floor(leadingSpaces / 4);  // Adjust indent detection
 
       // Improved ToC skipping: More precise regex and exit condition
       if (trimmed.match(/^#{1,6}\s*(table\s+of\s+contents|contents)\s*$/i)) {
@@ -393,7 +386,6 @@ class ProfessionalPdfGenerator {
         if (currentDepth <= tocDepth) {
           skipToC = false;
         }
-        // Continue to next to avoid partial parse
       }
 
       // Code block detection
@@ -420,26 +412,11 @@ class ProfessionalPdfGenerator {
         continue;
       }
 
-      // Improved List handling: Detect nested via indent, use ul/ol
-      if ((trimmed.match(/^[-*+]\s+/) || trimmed.match(/^\d+\.\s+/)) && currentIndentLevel >= 0) {
-        flushParagraph();
-        flushTable();
-        if (currentIndentLevel > currentIndent) {
-          // Nested list
-          addListItem(line, !!trimmed.match(/^\d+\.\s+/), currentIndentLevel);
-        } else if (currentIndentLevel < currentIndent) {
-          // Close previous, start new
-          currentIndent = currentIndentLevel;
-          addListItem(line, !!trimmed.match(/^\d+\.\s+/), currentIndentLevel);
-        } else {
-          addListItem(line, !!trimmed.match(/^\d+\.\s+/), currentIndentLevel);
-        }
-        currentIndent = currentIndentLevel;
+      // List detection (simplified, non-nested)
+      if (trimmed.match(/^[-*+]\s+/) || trimmed.match(/^\d+\.\s+/)) {
+        addList(line, !!trimmed.match(/^\d+\.\s+/));
         continue;
       }
-
-      // Reset indent for non-lists
-      currentIndent = 0;
 
       // Table detection (improved normalization)
       if (trimmed.includes('|') && !inTable) {
@@ -450,6 +427,10 @@ class ProfessionalPdfGenerator {
           tableHeaders = cells;
           inTable = true;
           i++;  // Skip separator
+          continue;
+        } else {
+          // If no separator, treat as paragraph
+          paragraphBuffer.push(trimmed);
           continue;
         }
       }
@@ -474,15 +455,16 @@ class ProfessionalPdfGenerator {
         flushTable();
         const text = this.cleanText(trimmed.substring(2));
         const inlineContent = this.parseInlineMarkdown(text);
+        const headingText = Array.isArray(inlineContent) ? inlineContent : [inlineContent];
         
         if (isModuleHeading) {
           if (!isFirstModule) {
             content.push({ text: '', pageBreak: 'before' });
           }
           isFirstModule = false;
-          content.push({ text: inlineContent, style: 'h1Module' });
+          content.push({ text: headingText, style: 'h1Module' });
         } else {
-          content.push({ text: inlineContent, style: 'h1Module' });
+          content.push({ text: headingText, style: 'h1Module' });
         }
       } else if (trimmed.startsWith('## ')) {
         flushParagraph();
@@ -492,15 +474,18 @@ class ProfessionalPdfGenerator {
       } else if (trimmed.startsWith('### ')) {
         flushParagraph();
         flushTable();
-        content.push({ text: this.parseInlineMarkdown(this.cleanText(trimmed.substring(4))), style: 'h3' });
+        const text = this.cleanText(trimmed.substring(4));
+        content.push({ text: this.parseInlineMarkdown(text), style: 'h3' });
       } else if (trimmed.startsWith('#### ')) {
         flushParagraph();
         flushTable();
-        content.push({ text: this.parseInlineMarkdown(this.cleanText(trimmed.substring(5))), style: 'h4' });
+        const text = this.cleanText(trimmed.substring(5));
+        content.push({ text: this.parseInlineMarkdown(text), style: 'h4' });
       } else if (trimmed.startsWith('>')) {
         flushParagraph();
         flushTable();
         const text = this.cleanText(trimmed.substring(1).trim());
+        const inlineContent = this.parseInlineMarkdown(text);
         content.push({
           columns: [
             {
@@ -514,7 +499,7 @@ class ProfessionalPdfGenerator {
             },
             {
               width: '*',
-              text: this.parseInlineMarkdown(text),
+              text: inlineContent,
               style: 'blockquote',
               margin: [8, 0, 0, 0]
             }
@@ -545,13 +530,16 @@ class ProfessionalPdfGenerator {
       ? `This comprehensive ${metadata.modules}-chapter document explores ${metadata.goal}. It contains ${metadata.words.toLocaleString()} words of AI-generated content, structured for in-depth coverage with clear explanations and practical insights.`
       : `This comprehensive ${metadata.modules}-chapter document contains ${metadata.words.toLocaleString()} words of AI-generated content. Each section has been carefully structured to provide in-depth coverage of the topic with clear explanations and practical insights.`;
 
+    const titleInline = this.parseInlineMarkdown(title);
+    const titleText = Array.isArray(titleInline) ? titleInline : [titleInline];
+
     return [
       // Top margin spacer
       { text: '', margin: [0, 80, 0, 0] },
       
       // Main title - bold and prominent
       { 
-        text: this.parseInlineMarkdown(title), 
+        text: titleText, 
         style: 'coverTitle',
         margin: [0, 0, 0, 12]
       },
@@ -881,11 +869,23 @@ export const pdfService = {
     } catch (error: any) {
       console.error('💥 PDF generation error:', error);
       
-      alert('PDF generation failed. Please try:\n\n' +
-            '1. Hard refresh the page (Ctrl+Shift+R)\n' +
-            '2. Clear browser cache\n' +
-            '3. Download Markdown (.md) version instead\n\n' +
-            'The .md file contains complete content.');
+      let errorMessage = 'PDF generation failed.';
+      if (error.message.includes('VFS_NOT_FOUND') || error.message.includes('VFS_MISSING_FONTS') || error.message.includes('VFS_TRUNCATED_DATA')) {
+        errorMessage += '\n\nFont loading issue detected. Troubleshooting:\n' +
+          '1. Ensure pdfmake and vfs_fonts are installed: npm install pdfmake\n' +
+          '2. In webpack/vite config, handle vfs_fonts as raw (e.g., { loader: "raw-loader" } for vfs_fonts.js)\n' +
+          '3. Verify no bundler is truncating base64 data in vfs_fonts.\n' +
+          '4. Try hard refresh (Ctrl+Shift+R) or clear cache.\n' +
+          '5. As fallback, export Markdown (.md) instead.';
+      } else {
+        errorMessage += '\n\nPlease try:\n' +
+          '1. Hard refresh the page (Ctrl+Shift+R)\n' +
+          '2. Clear browser cache\n' +
+          '3. Download Markdown (.md) version instead\n\n' +
+          'The .md file contains complete content.';
+      }
+      
+      alert(errorMessage);
       
       onProgress(0);
     } finally {
