@@ -82,12 +82,6 @@ async function loadPdfMake() {
         bold: 'Roboto-Medium.ttf',
         italics: 'Roboto-Italic.ttf',
         bolditalics: 'Roboto-MediumItalic.ttf'
-      },
-      Courier: {
-        normal: 'Courier',
-        bold: 'Courier-Bold',
-        italics: 'Courier-Oblique',
-        bolditalics: 'Courier-BoldOblique'
       }
     };
     
@@ -226,12 +220,12 @@ class PremiumPdfGenerator {
       
       // Special elements - Better contrast
       codeBlock: { 
-        font: 'Courier', 
         fontSize: 10, 
         margin: [20, 14, 20, 18], 
         color: '#334155',
         background: '#F8FAFC',
-        fillColor: '#F8FAFC'
+        fillColor: '#F8FAFC',
+        preserveLeadingSpaces: true
       },
       blockquote: { 
         fontSize: 11.5, 
