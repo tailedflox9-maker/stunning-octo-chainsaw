@@ -640,7 +640,7 @@ class BookGenerationService {
     return `Create a comprehensive learning roadmap for: "${session.goal}"
 
 Requirements:
-- Generate 8-12 modules in a logical learning sequence
+- Generate a suitable number of modules, with a minimum of 8. The final number should be based on the complexity and scope of the learning goal.
 - Each module should have a clear title and 3-5 specific learning objectives
 - Estimate realistic reading/study time for each module
 - Target audience: ${session.targetAudience || 'general learners'}
