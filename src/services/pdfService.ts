@@ -1,7 +1,7 @@
-// src/services/pdfService.ts - PROFESSIONAL ACADEMIC VERSION (Updated for Aptos-Mono in Code Blocks)
-// Quick Update: Loads Aptos-Mono (Regular & Bold) from /fonts/ for monospace code blocks.
-// Uses it specifically for 'codeBlock' style (smooth, readable code like ChatGPT). Main text stays Lora/Roboto.
-// Falls back gracefully if files missing. Only needs the 2 files you added!
+// src/services/pdfService.ts - PROFESSIONAL ACADEMIC VERSION (Updated: Aptos-Mono as Main Font)
+// Quick Update: Removed Lora loading. Uses Aptos-Mono (Regular & Bold) as primary font for all text.
+// Falls back to Roboto if files missing. Monospaced for a clean, code-inspired academic look.
+// Italics fall back to regular (no italic variant). Code blocks also use it for consistency.
 
 import { BookProject } from '../types';
 
@@ -73,11 +73,11 @@ async function loadPdfMake() {
     
     pdfMake.vfs = vfs;
     
-    // UPDATED: Auto-load Aptos-Mono fonts from /fonts/ (for code blocks, ChatGPT-style)
-    // You added just these 2 – perfect for mono regular/bold. No italics needed for code.
+    // UPDATED: Auto-load Aptos-Mono fonts from /fonts/ (now as MAIN font)
+    // Removed Lora block. Uses your 2 files for primary font (monospaced elegance).
     const basePath = '/fonts/';
     const aptosMonoFonts = [
-      { name: 'Aptos-Mono.ttf', key: 'Aptos-Mono.ttf' },  // Assuming file name; adjust if it's Aptos-Mono-Regular.ttf
+      { name: 'Aptos-Mono.ttf', key: 'Aptos-Mono.ttf' },
       { name: 'Aptos-Mono-Bold.ttf', key: 'Aptos-Mono-Bold.ttf' }
     ];
     
@@ -106,36 +106,6 @@ async function loadPdfMake() {
       }
     }
     
-    // OPTIONAL: Keep Lora loading if you have those files too (from earlier)
-    // If not, comment out or remove this block
-    const loraFonts = [
-      { name: 'Lora-Regular.ttf', key: 'Lora-Regular.ttf' },
-      { name: 'Lora-Medium.ttf', key: 'Lora-Medium.ttf' },
-      { name: 'Lora-Italic.ttf', key: 'Lora-Italic.ttf' },
-      { name: 'Lora-MediumItalic.ttf', key: 'Lora-MediumItalic.ttf' }
-    ];
-    
-    let hasLora = false;
-    for (const font of loraFonts) {
-      try {
-        const response = await fetch(`${basePath}${font.name}`);
-        if (response.ok) {
-          const arrayBuffer = await response.arrayBuffer();
-          const base64 = btoa(
-            new Uint8Array(arrayBuffer).reduce(
-              (data, byte) => data + String.fromCharCode(byte),
-              ''
-            )
-          );
-          pdfMake.vfs[font.key] = base64;
-          console.log(`✓ Loaded ${font.name}`);
-          hasLora = true;
-        }
-      } catch (error) {
-        // Skip if missing
-      }
-    }
-    
     const vfsKeys = Object.keys(vfs);
     if (vfsKeys.length === 0) {
       throw new Error('VFS_EMPTY');
@@ -143,27 +113,18 @@ async function loadPdfMake() {
     
     console.log('✓ VFS loaded with', vfsKeys.length, 'files');
     
-    // Main font: Lora if loaded, else Roboto
-    const mainFontFamily = hasLora ? 'Lora' : 'Roboto';
+    // Main font: Aptos-Mono if loaded, else Roboto
+    const mainFontFamily = hasAptosMono ? 'Aptos-Mono' : 'Roboto';
     
-    // Configure fonts: Main + Aptos-Mono for code
+    // Configure fonts: Primary + fallback
     pdfMake.fonts = {
       [mainFontFamily]: {
-        normal: `${mainFontFamily}-Regular.ttf`,
-        bold: `${mainFontFamily}-Medium.ttf`,
-        italics: `${mainFontFamily}-Italic.ttf`,
-        bolditalics: `${mainFontFamily}-MediumItalic.ttf`
+        normal: `${mainFontFamily}.ttf`,  // Aptos-Mono.ttf or Roboto-Regular.ttf
+        bold: `${mainFontFamily}-Bold.ttf`,  // Aptos-Mono-Bold.ttf or Roboto-Medium.ttf
+        italics: `${mainFontFamily}.ttf`,  // Fallback to normal for italics (no italic variant)
+        bolditalics: `${mainFontFamily}-Bold.ttf`  // Fallback to bold for bold italics
       },
-      // NEW: Aptos-Mono for monospace (code blocks) – only regular & bold
-      ...(hasAptosMono && {
-        'Aptos-Mono': {
-          normal: 'Aptos-Mono.ttf',
-          bold: 'Aptos-Mono-Bold.ttf',
-          italics: 'Aptos-Mono.ttf',  // Fallback to regular for italics
-          bolditalics: 'Aptos-Mono-Bold.ttf'  // Fallback to bold
-        }
-      }),
-      // Always keep Roboto fallback
+      // Always keep full Roboto as ultimate fallback
       Roboto: {
         normal: 'Roboto-Regular.ttf',
         bold: 'Roboto-Medium.ttf',
@@ -172,7 +133,7 @@ async function loadPdfMake() {
       }
     };
     
-    console.log(`✓ Main font: ${mainFontFamily}. Aptos-Mono for code: ${hasAptosMono ? 'Loaded!' : 'Fallback to Roboto'}`);
+    console.log(`✓ Using main font: ${mainFontFamily} (monospaced pro style)`);
     
     fontsLoaded = true;
     return pdfMake;
@@ -219,21 +180,19 @@ class ProfessionalPdfGenerator {
   private content: PDFContent[] = [];
   private styles: any;
   private fontFamily: string;
-  private hasAptosMono: boolean;
 
   constructor() {
     this.fontFamily = 'Roboto';  // Default
-    this.hasAptosMono = false;
     this.styles = {
-      // Cover page styles (unchanged)
+      // Cover page styles (tweaked slightly for mono: tighter spacing)
       coverTitle: { 
         fontSize: 28, 
         bold: true, 
         alignment: 'left', 
         margin: [0, 0, 0, 8], 
         color: '#1a1a1a',
-        lineHeight: 1.2,
-        characterSpacing: 0.3
+        lineHeight: 1.1,  // Tighter for mono
+        characterSpacing: 0.5  // More space in mono
       },
       coverSubtitle: { 
         fontSize: 18, 
@@ -241,31 +200,31 @@ class ProfessionalPdfGenerator {
         color: '#1a1a1a',
         bold: true,
         margin: [0, 0, 0, 4],
-        lineHeight: 1.3
+        lineHeight: 1.2
       },
       
-      // Content styles (unchanged, uses main font)
+      // Content styles (adjusted for monospaced readability)
       h1Module: { 
         fontSize: 26, 
         bold: true, 
         margin: [0, 0, 0, 18], 
         color: '#1a202c',
-        lineHeight: 1.35,
-        characterSpacing: 0.5
+        lineHeight: 1.3,
+        characterSpacing: 0.8  // Extra for headings in mono
       },
       h2: { 
         fontSize: 18, 
         bold: true, 
         margin: [0, 22, 0, 11], 
         color: '#2d3748',
-        lineHeight: 1.35
+        lineHeight: 1.3
       },
       h3: { 
         fontSize: 15, 
         bold: true, 
         margin: [0, 18, 0, 9], 
         color: '#2d3748',
-        lineHeight: 1.35
+        lineHeight: 1.3
       },
       h4: { 
         fontSize: 13, 
@@ -274,22 +233,22 @@ class ProfessionalPdfGenerator {
         color: '#4a5568' 
       },
       
-      // Text styles (unchanged)
+      // Text styles (optimized for mono: wider lines)
       paragraph: { 
         fontSize: 10, 
-        lineHeight: 1.7, 
+        lineHeight: 1.5,  // Adjusted down for mono density
         alignment: 'justify', 
         margin: [0, 0, 0, 10], 
         color: '#1a1a1a'
       },
       listItem: { 
         fontSize: 10, 
-        lineHeight: 1.6, 
+        lineHeight: 1.4,
         margin: [0, 2, 0, 2], 
         color: '#1a1a1a'
       },
       
-      // Special elements
+      // Special elements (code uses main font now for consistency)
       codeBlock: { 
         fontSize: 9.5, 
         margin: [12, 10, 12, 10], 
@@ -297,15 +256,14 @@ class ProfessionalPdfGenerator {
         background: '#f7fafc',
         fillColor: '#f7fafc',
         preserveLeadingSpaces: true,
-        lineHeight: 1.5,
-        font: 'Aptos-Mono'  // NEW: Uses Aptos-Mono for smooth code rendering (falls back if not loaded)
+        lineHeight: 1.4  // Matches mono body
       },
       blockquote: { 
         fontSize: 10.5, 
         italics: true, 
         margin: [20, 10, 15, 10], 
         color: '#4a5568',
-        lineHeight: 1.8
+        lineHeight: 1.6
       },
       
       // Table styles (unchanged)
@@ -318,7 +276,7 @@ class ProfessionalPdfGenerator {
       tableCell: {
         fontSize: 10,
         color: '#2d3748',
-        lineHeight: 1.6
+        lineHeight: 1.4  // Tighter for mono
       }
     };
   }
@@ -341,7 +299,7 @@ class ProfessionalPdfGenerator {
   }
 
   private parseMarkdownToContent(markdown: string): PDFContent[] {
-    // Unchanged – all good
+    // Unchanged – parses to content using main font
     const content: PDFContent[] = [];
     const lines = markdown.split('\n');
     let paragraphBuffer: string[] = [];
@@ -366,7 +324,7 @@ class ProfessionalPdfGenerator {
       if (codeBuffer.length > 0 && !skipToC) {
         content.push({
           text: codeBuffer.join('\n'),
-          style: 'codeBlock',  // Uses Aptos-Mono automatically
+          style: 'codeBlock',  // Now uses main Aptos-Mono
           margin: [12, 10, 12, 10],
           fillColor: '#f7fafc'
         });
@@ -688,10 +646,9 @@ class ProfessionalPdfGenerator {
     
     const pdfMakeLib = await loadPdfMake();
     
-    // Extract fonts from setup
-    const hasLora = Object.keys(pdfMakeLib.vfs).some(key => key.includes('Lora'));
-    this.fontFamily = hasLora ? 'Lora' : 'Roboto';
-    this.hasAptosMono = Object.keys(pdfMakeLib.vfs).some(key => key.includes('Aptos-Mono'));
+    // Set main font from setup
+    const hasAptosMono = Object.keys(pdfMakeLib.vfs).some(key => key.includes('Aptos-Mono'));
+    this.fontFamily = hasAptosMono ? 'Aptos-Mono' : 'Roboto';
     
     onProgress(25);
 
@@ -723,10 +680,10 @@ class ProfessionalPdfGenerator {
       content: this.content,
       styles: this.styles,
       defaultStyle: { 
-        font: this.fontFamily, 
+        font: this.fontFamily,  // Aptos-Mono or Roboto
         fontSize: 10, 
         color: '#1a1a1a',
-        lineHeight: 1.7
+        lineHeight: 1.5  // Optimized for mono
       },
       pageSize: 'A4',
       pageMargins: [65, 75, 65, 70],
@@ -790,7 +747,7 @@ class ProfessionalPdfGenerator {
     };
 
     onProgress(85);
-    console.log(`📄 Creating PDF with ${this.fontFamily} (main) + ${this.hasAptosMono ? 'Aptos-Mono (code)' : 'Roboto (code)'}`);
+    console.log(`📄 Creating PDF with ${this.fontFamily} font throughout`);
 
     return new Promise((resolve, reject) => {
       try {
@@ -833,8 +790,7 @@ class ProfessionalPdfGenerator {
                 <li class="flex items-start gap-2"><span class="text-green-400 shrink-0">✓</span><span>Clean, readable 10pt body text</span></li>
                 <li class="flex items-start gap-2"><span class="text-green-400 shrink-0">✓</span><span>Professional cover page design</span></li>
                 <li class="flex items-start gap-2"><span class="text-green-400 shrink-0">✓</span><span>Justified text alignment</span></li>
-                <li class="flex items-start gap-2"><span class="text-green-400 shrink-0">✓</span><span>${this.fontFamily} font for smooth readability</span></li>
-                ${this.hasAptosMono ? '<li class="flex items-start gap-2"><span class="text-green-400 shrink-0">✓</span><span>Aptos-Mono for crisp code blocks</span></li>' : ''}
+                <li class="flex items-start gap-2"><span class="text-green-400 shrink-0">✓</span><span>${this.fontFamily} font for consistent monospaced style</span></li>
                 ${hasEmojis ? '<li class="flex items-start gap-2"><span class="text-yellow-400 shrink-0">•</span><span>Emojis removed for compatibility</span></li>' : ''}
                 ${hasComplexFormatting ? '<li class="flex items-start gap-2"><span class="text-yellow-400 shrink-0">•</span><span>Advanced formatting simplified</span></li>' : ''}
               </ul>
