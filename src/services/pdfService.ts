@@ -175,46 +175,46 @@ class PremiumPdfGenerator {
       
       // Content styles - Better readability
       h1Module: { 
-        fontSize: 32, 
+        fontSize: 28, 
         bold: true, 
-        margin: [0, 0, 0, 24], 
+        margin: [0, 0, 0, 16], 
         color: '#0F172A',
         lineHeight: 1.3,
         characterSpacing: 0.3
       },
       h2: { 
-        fontSize: 22, 
+        fontSize: 20, 
         bold: true, 
-        margin: [0, 32, 0, 16], 
+        margin: [0, 20, 0, 12], 
         color: '#1E293B',
         lineHeight: 1.3
       },
       h3: { 
-        fontSize: 18, 
+        fontSize: 17, 
         bold: true, 
-        margin: [0, 26, 0, 14], 
+        margin: [0, 16, 0, 10], 
         color: '#334155',
         lineHeight: 1.3
       },
       h4: { 
-        fontSize: 16, 
+        fontSize: 15, 
         bold: true, 
-        margin: [0, 20, 0, 12], 
+        margin: [0, 14, 0, 8], 
         color: '#475569' 
       },
       
       // Text styles - Optimized for reading
       paragraph: { 
-        fontSize: 12, 
-        lineHeight: 1.9, 
+        fontSize: 11.5, 
+        lineHeight: 1.7, 
         alignment: 'left', 
-        margin: [0, 0, 0, 18], 
+        margin: [0, 0, 0, 12], 
         color: '#1E293B'
       },
       listItem: { 
-        fontSize: 12, 
-        lineHeight: 1.8, 
-        margin: [0, 7, 0, 7], 
+        fontSize: 11.5, 
+        lineHeight: 1.6, 
+        margin: [0, 4, 0, 4], 
         color: '#1E293B'
       },
       
