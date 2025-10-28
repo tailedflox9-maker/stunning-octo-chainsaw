@@ -467,32 +467,8 @@ class PremiumPdfGenerator {
   }
 
   private createTableOfContents(): PDFContent[] {
-    if (this.tocItems.length === 0) return [];
-    
-    return [
-      { text: 'Table of Contents', style: 'tocTitle' },
-      { 
-        canvas: [{ 
-          type: 'line', 
-          x1: 0, y1: 0, 
-          x2: 515, y2: 0, 
-          lineWidth: 2, 
-          lineColor: '#CBD5E0' 
-        }], 
-        margin: [0, 0, 0, 30] 
-      },
-      ...this.tocItems.map((item, i) => ({
-        columns: [
-          {
-            text: `${item.level === 1 ? (i + 1) + '.' : '   ' + (i + 1) + '.'} ${item.title}`,
-            style: item.level === 1 ? 'tocH1' : 'tocH2',
-            width: '*'
-          }
-        ],
-        margin: item.level === 1 ? [0, 16, 0, 10] : [24, 10, 0, 8]
-      })),
-      { text: '', pageBreak: 'after' }
-    ];
+    // Skip ToC generation - it's already in the markdown
+    return [];
   }
 
   private createCoverPage(title: string, metadata: { 
@@ -503,72 +479,274 @@ class PremiumPdfGenerator {
     model?: string;
   }): PDFContent[] {
     return [
-      // Decorative top border
+      // Geometric decorative pattern at top
       {
-        canvas: [{
-          type: 'rect',
-          x: 0, y: 0,
-          w: 515, h: 3,
-          color: '#3B82F6'
-        }],
+        canvas: [
+          // Top accent line
+          {
+            type: 'rect',
+            x: 0, y: 0,
+            w: 515, h: 4,
+            color: '#3B82F6'
+          },
+          // Subtle geometric shapes
+          {
+            type: 'rect',
+            x: 0, y: 8,
+            w: 2, h: 40,
+            color: '#3B82F6',
+            opacity: 0.3
+          },
+          {
+            type: 'rect',
+            x: 513, y: 8,
+            w: 2, h: 40,
+            color: '#3B82F6',
+            opacity: 0.3
+          }
+        ],
         margin: [0, 0, 0, 0]
       },
       
-      // Title
-      { text: title, style: 'coverTitle' },
+      // Large icon/badge area
+      {
+        canvas: [
+          {
+            type: 'ellipse',
+            x: 257.5, y: 120,
+            r1: 60, r2: 60,
+            color: '#EFF6FF',
+            lineColor: '#3B82F6',
+            lineWidth: 2
+          },
+          // Inner circle
+          {
+            type: 'ellipse',
+            x: 257.5, y: 120,
+            r1: 50, r2: 50,
+            color: '#DBEAFE'
+          }
+        ],
+        margin: [0, 80, 0, 30]
+      },
       
-      // Elegant divider
+      // AI Book icon (simplified)
+      {
+        canvas: [
+          // Book pages
+          {
+            type: 'rect',
+            x: 227, y: 0,
+            w: 50, h: 35,
+            color: '#3B82F6'
+          },
+          {
+            type: 'rect',
+            x: 232, y: 5,
+            w: 40, h: 25,
+            color: '#FFFFFF'
+          },
+          // Lines on page
+          {
+            type: 'line',
+            x1: 237, y1: 12,
+            x2: 267, y2: 12,
+            lineWidth: 1.5,
+            lineColor: '#3B82F6'
+          },
+          {
+            type: 'line',
+            x1: 237, y1: 18,
+            x2: 267, y2: 18,
+            lineWidth: 1.5,
+            lineColor: '#3B82F6'
+          },
+          {
+            type: 'line',
+            x1: 237, y1: 24,
+            x2: 267, y2: 24,
+            lineWidth: 1.5,
+            lineColor: '#3B82F6'
+          }
+        ],
+        margin: [0, -60, 0, 50]
+      },
+      
+      // Title with better spacing
+      { 
+        text: title, 
+        style: 'coverTitle',
+        margin: [0, 0, 0, 30]
+      },
+      
+      // Elegant subtitle divider
       {
         canvas: [{
           type: 'line',
-          x1: 150, y1: 0,
-          x2: 365, y2: 0,
-          lineWidth: 1,
-          lineColor: '#94A3B8'
+          x1: 180, y1: 0,
+          x2: 335, y2: 0,
+          lineWidth: 1.5,
+          lineColor: '#CBD5E0'
         }],
-        margin: [0, 20, 0, 30]
+        margin: [0, 0, 0, 35]
       },
       
-      // Metadata - Better spacing
+      // Metadata cards with icons
       {
         columns: [
-          { width: '*', text: '' },
+          { width: 50, text: '' },
           {
-            width: 'auto',
+            width: '*',
             stack: [
-              { 
-                text: `${metadata.words.toLocaleString()} words`, 
-                style: 'coverMetadata'
+              // Word count
+              {
+                columns: [
+                  {
+                    canvas: [{
+                      type: 'ellipse',
+                      x: 15, y: 10,
+                      r1: 15, r2: 15,
+                      color: '#EFF6FF'
+                    }],
+                    width: 30
+                  },
+                  {
+                    stack: [
+                      { 
+                        text: `${metadata.words.toLocaleString()}`, 
+                        style: { fontSize: 22, bold: true, color: '#1E293B' }
+                      },
+                      { 
+                        text: 'words', 
+                        style: { fontSize: 11, color: '#64748B', margin: [0, 2, 0, 0] }
+                      }
+                    ],
+                    width: '*'
+                  }
+                ],
+                margin: [0, 0, 0, 20]
               },
-              { 
-                text: `${metadata.modules} chapters`, 
-                style: 'coverMetadata'
+              // Chapter count
+              {
+                columns: [
+                  {
+                    canvas: [{
+                      type: 'ellipse',
+                      x: 15, y: 10,
+                      r1: 15, r2: 15,
+                      color: '#F0F9FF'
+                    }],
+                    width: 30
+                  },
+                  {
+                    stack: [
+                      { 
+                        text: `${metadata.modules}`, 
+                        style: { fontSize: 22, bold: true, color: '#1E293B' }
+                      },
+                      { 
+                        text: 'chapters', 
+                        style: { fontSize: 11, color: '#64748B', margin: [0, 2, 0, 0] }
+                      }
+                    ],
+                    width: '*'
+                  }
+                ],
+                margin: [0, 0, 0, 20]
               },
-              { 
-                text: metadata.date, 
-                style: 'coverMetadata',
-                margin: [0, 14, 0, 0]
+              // Date
+              {
+                columns: [
+                  {
+                    canvas: [{
+                      type: 'ellipse',
+                      x: 15, y: 10,
+                      r1: 15, r2: 15,
+                      color: '#F8FAFC'
+                    }],
+                    width: 30
+                  },
+                  {
+                    stack: [
+                      { 
+                        text: metadata.date, 
+                        style: { fontSize: 13, color: '#475569', margin: [0, 8, 0, 0] }
+                      }
+                    ],
+                    width: '*'
+                  }
+                ]
               }
             ]
           },
-          { width: '*', text: '' }
-        ]
+          { width: 50, text: '' }
+        ],
+        margin: [0, 0, 0, 50]
       },
       
-      // AI Model info
+      // AI Model info with badge
       ...(metadata.provider && metadata.model ? [{
-        text: `Powered by ${metadata.provider} ${metadata.model}`,
-        style: { 
-          fontSize: 10, 
-          alignment: 'center', 
-          color: '#94A3B8', 
-          margin: [0, 40, 0, 0],
-          italics: true
-        }
+        stack: [
+          {
+            text: 'POWERED BY',
+            style: {
+              fontSize: 9,
+              alignment: 'center',
+              color: '#94A3B8',
+              letterSpacing: 2,
+              margin: [0, 0, 0, 8]
+            }
+          },
+          {
+            text: `${metadata.provider} ${metadata.model}`,
+            style: { 
+              fontSize: 12, 
+              alignment: 'center', 
+              color: '#475569',
+              bold: true,
+              margin: [0, 0, 0, 0]
+            }
+          }
+        ],
+        margin: [0, 40, 0, 0]
       }] : []),
       
-      // Branding
-      { text: 'Pustakam AI Book Engine', style: 'coverBrand' },
+      // Bottom branding with accent
+      {
+        stack: [
+          {
+            canvas: [{
+              type: 'line',
+              x1: 200, y1: 0,
+              x2: 315, y2: 0,
+              lineWidth: 1,
+              lineColor: '#E2E8F0'
+            }],
+            margin: [0, 0, 0, 15]
+          },
+          { 
+            text: 'Pustakam AI', 
+            style: { 
+              fontSize: 14, 
+              alignment: 'center', 
+              color: '#3B82F6',
+              bold: true,
+              margin: [0, 0, 0, 5]
+            }
+          },
+          { 
+            text: 'Book Engine', 
+            style: { 
+              fontSize: 10, 
+              alignment: 'center', 
+              color: '#94A3B8',
+              margin: [0, 0, 0, 0]
+            }
+          }
+        ],
+        margin: [0, 80, 0, 0]
+      },
+      
       { text: '', pageBreak: 'after' }
     ];
   }
