@@ -1,7 +1,5 @@
-// src/services/pdfService.ts - PROFESSIONAL ACADEMIC VERSION (Updated: Aptos-Mono as Main Font)
-// Quick Update: Removed Lora loading. Uses Aptos-Mono (Regular & Bold) as primary font for all text.
-// Falls back to Roboto if files missing. Monospaced for a clean, code-inspired academic look.
-// Italics fall back to regular (no italic variant). Code blocks also use it for consistency.
+// src/services/pdfService.ts - ENHANCED PROFESSIONAL VERSION
+// Refined with beautiful tables, subtle effects, and polished typography
 
 import { BookProject } from '../types';
 
@@ -26,7 +24,7 @@ async function loadPdfMake() {
     pdfMake = pdfMakeModule.default || pdfMakeModule;
     const fonts = pdfFontsModule.default || pdfFontsModule;
     
-    // VFS Detection (unchanged)
+    // VFS Detection
     let vfs = null;
     
     if (fonts?.pdfMake?.vfs) {
@@ -73,8 +71,7 @@ async function loadPdfMake() {
     
     pdfMake.vfs = vfs;
     
-    // UPDATED: Auto-load Aptos-Mono fonts from /fonts/ (now as MAIN font)
-    // Removed Lora block. Uses your 2 files for primary font (monospaced elegance).
+    // Load Aptos-Mono fonts
     const basePath = '/fonts/';
     const aptosMonoFonts = [
       { name: 'Aptos-Mono.ttf', key: 'Aptos-Mono.ttf' },
@@ -96,13 +93,11 @@ async function loadPdfMake() {
             )
           );
           pdfMake.vfs[font.key] = base64;
-          console.log(`✓ Loaded ${font.name} (${base64.substring(0, 50)}... )`);
+          console.log(`✓ Loaded ${font.name}`);
           hasAptosMono = true;
-        } else {
-          console.log(`⚠ ${font.name} not found (HTTP ${response.status})`);
         }
       } catch (error) {
-        console.log(`❌ Failed to load ${font.name}:`, error);
+        console.log(`⚠ Failed to load ${font.name}`);
       }
     }
     
@@ -113,18 +108,15 @@ async function loadPdfMake() {
     
     console.log('✓ VFS loaded with', vfsKeys.length, 'files');
     
-    // Main font: Aptos-Mono if loaded, else Roboto
     const mainFontFamily = hasAptosMono ? 'Aptos-Mono' : 'Roboto';
     
-    // Configure fonts: Primary + fallback
     pdfMake.fonts = {
       [mainFontFamily]: {
-        normal: `${mainFontFamily}.ttf`,  // Aptos-Mono.ttf or Roboto-Regular.ttf
-        bold: `${mainFontFamily}-Bold.ttf`,  // Aptos-Mono-Bold.ttf or Roboto-Medium.ttf
-        italics: `${mainFontFamily}.ttf`,  // Fallback to normal for italics (no italic variant)
-        bolditalics: `${mainFontFamily}-Bold.ttf`  // Fallback to bold for bold italics
+        normal: `${mainFontFamily}.ttf`,
+        bold: `${mainFontFamily}-Bold.ttf`,
+        italics: `${mainFontFamily}.ttf`,
+        bolditalics: `${mainFontFamily}-Bold.ttf`
       },
-      // Always keep full Roboto as ultimate fallback
       Roboto: {
         normal: 'Roboto-Regular.ttf',
         bold: 'Roboto-Medium.ttf',
@@ -133,7 +125,7 @@ async function loadPdfMake() {
       }
     };
     
-    console.log(`✓ Using main font: ${mainFontFamily} (monospaced pro style)`);
+    console.log(`✓ Using main font: ${mainFontFamily}`);
     
     fontsLoaded = true;
     return pdfMake;
@@ -182,101 +174,109 @@ class ProfessionalPdfGenerator {
   private fontFamily: string;
 
   constructor() {
-    this.fontFamily = 'Roboto';  // Default
+    this.fontFamily = 'Roboto';
     this.styles = {
-      // Cover page styles (tweaked slightly for mono: tighter spacing)
+      // Cover page - Elegant and refined
       coverTitle: { 
-        fontSize: 28, 
+        fontSize: 32, 
         bold: true, 
         alignment: 'left', 
-        margin: [0, 0, 0, 8], 
-        color: '#1a1a1a',
-        lineHeight: 1.1,  // Tighter for mono
-        characterSpacing: 0.5  // More space in mono
+        margin: [0, 0, 0, 10], 
+        color: '#0f172a',
+        lineHeight: 1.15,
+        characterSpacing: 0.3
       },
       coverSubtitle: { 
-        fontSize: 18, 
+        fontSize: 16, 
         alignment: 'left', 
-        color: '#1a1a1a',
-        bold: true,
-        margin: [0, 0, 0, 4],
-        lineHeight: 1.2
+        color: '#475569',
+        margin: [0, 0, 0, 6],
+        lineHeight: 1.4
       },
       
-      // Content styles (adjusted for monospaced readability)
+      // Headers with subtle hierarchy
       h1Module: { 
-        fontSize: 26, 
+        fontSize: 24, 
         bold: true, 
-        margin: [0, 0, 0, 18], 
-        color: '#1a202c',
+        margin: [0, 0, 0, 16], 
+        color: '#0f172a',
         lineHeight: 1.3,
-        characterSpacing: 0.8  // Extra for headings in mono
+        characterSpacing: 0.5
       },
       h2: { 
-        fontSize: 18, 
+        fontSize: 16, 
         bold: true, 
-        margin: [0, 22, 0, 11], 
-        color: '#2d3748',
-        lineHeight: 1.3
+        margin: [0, 20, 0, 10], 
+        color: '#1e293b',
+        lineHeight: 1.35
       },
       h3: { 
-        fontSize: 15, 
+        fontSize: 13.5, 
         bold: true, 
-        margin: [0, 18, 0, 9], 
-        color: '#2d3748',
-        lineHeight: 1.3
+        margin: [0, 16, 0, 8], 
+        color: '#334155',
+        lineHeight: 1.4
       },
       h4: { 
-        fontSize: 13, 
+        fontSize: 12, 
         bold: true, 
-        margin: [0, 15, 0, 8], 
-        color: '#4a5568' 
+        margin: [0, 12, 0, 6], 
+        color: '#475569' 
       },
       
-      // Text styles (optimized for mono: wider lines)
+      // Body text - Comfortable reading
       paragraph: { 
-        fontSize: 10, 
-        lineHeight: 1.5,  // Adjusted down for mono density
+        fontSize: 10.5, 
+        lineHeight: 1.65,
         alignment: 'justify', 
-        margin: [0, 0, 0, 10], 
-        color: '#1a1a1a'
+        margin: [0, 0, 0, 11], 
+        color: '#1e293b'
       },
       listItem: { 
-        fontSize: 10, 
-        lineHeight: 1.4,
-        margin: [0, 2, 0, 2], 
-        color: '#1a1a1a'
+        fontSize: 10.5, 
+        lineHeight: 1.55,
+        margin: [0, 3, 0, 3], 
+        color: '#1e293b'
       },
       
-      // Special elements (code uses main font now for consistency)
+      // Special elements with subtle backgrounds
       codeBlock: { 
-        fontSize: 9.5, 
-        margin: [12, 10, 12, 10], 
-        color: '#2d3748',
-        background: '#f7fafc',
-        fillColor: '#f7fafc',
+        fontSize: 9, 
+        margin: [15, 12, 15, 12], 
+        color: '#334155',
+        background: '#f8fafc',
+        fillColor: '#f8fafc',
         preserveLeadingSpaces: true,
-        lineHeight: 1.4  // Matches mono body
+        lineHeight: 1.5
       },
       blockquote: { 
         fontSize: 10.5, 
         italics: true, 
-        margin: [20, 10, 15, 10], 
-        color: '#4a5568',
-        lineHeight: 1.6
+        margin: [20, 12, 15, 12], 
+        color: '#475569',
+        lineHeight: 1.7
       },
       
-      // Table styles (unchanged)
+      // Enhanced table styles
       tableHeader: {
-        fontSize: 10.5,
+        fontSize: 10,
         bold: true,
-        color: '#1a202c',
-        fillColor: '#edf2f7'
+        color: '#0f172a',
+        fillColor: '#e0e7ff',
+        alignment: 'left'
       },
       tableCell: {
         fontSize: 10,
-        color: '#2d3748',
-        lineHeight: 1.4  // Tighter for mono
+        color: '#334155',
+        lineHeight: 1.5,
+        alignment: 'left'
+      },
+      tableCellAlt: {
+        fontSize: 10,
+        color: '#334155',
+        lineHeight: 1.5,
+        fillColor: '#f8fafc',
+        alignment: 'left'
       }
     };
   }
@@ -299,7 +299,6 @@ class ProfessionalPdfGenerator {
   }
 
   private parseMarkdownToContent(markdown: string): PDFContent[] {
-    // Unchanged – parses to content using main font
     const content: PDFContent[] = [];
     const lines = markdown.split('\n');
     let paragraphBuffer: string[] = [];
@@ -315,18 +314,37 @@ class ProfessionalPdfGenerator {
     const flushParagraph = () => {
       if (paragraphBuffer.length > 0) {
         const text = paragraphBuffer.join(' ').trim();
-        if (text && !skipToC) content.push({ text: this.cleanText(text), style: 'paragraph' });
+        if (text && !skipToC) {
+          content.push({ text: this.cleanText(text), style: 'paragraph' });
+        }
         paragraphBuffer = [];
       }
     };
 
     const flushCodeBlock = () => {
       if (codeBuffer.length > 0 && !skipToC) {
+        // Enhanced code block with subtle border
         content.push({
-          text: codeBuffer.join('\n'),
-          style: 'codeBlock',  // Now uses main Aptos-Mono
-          margin: [12, 10, 12, 10],
-          fillColor: '#f7fafc'
+          stack: [
+            {
+              canvas: [{
+                type: 'rect',
+                x: 0, y: 0,
+                w: 505, h: codeBuffer.length * 12 + 24,
+                r: 4,
+                color: '#f1f5f9',
+                lineColor: '#cbd5e1',
+                lineWidth: 0.5
+              }]
+            },
+            {
+              text: codeBuffer.join('\n'),
+              style: 'codeBlock',
+              margin: [15, -codeBuffer.length * 12 - 12, 15, 12],
+              preserveLeadingSpaces: true
+            }
+          ],
+          margin: [0, 10, 0, 14]
         });
         codeBuffer = [];
       }
@@ -337,39 +355,45 @@ class ProfessionalPdfGenerator {
         const colCount = tableHeaders.length;
         const colWidths = Array(colCount).fill('*');
         
+        // Create enhanced table with alternating row colors
+        const tableBody = [
+          // Header row
+          tableHeaders.map(h => ({ 
+            text: this.cleanText(h), 
+            style: 'tableHeader',
+            margin: [8, 6, 8, 6]
+          })),
+          // Data rows with alternating colors
+          ...tableRows.map((row, idx) => 
+            row.map(cell => ({ 
+              text: this.cleanText(cell), 
+              style: idx % 2 === 0 ? 'tableCell' : 'tableCellAlt',
+              margin: [8, 5, 8, 5]
+            }))
+          )
+        ];
+        
         content.push({
           table: {
             headerRows: 1,
             widths: colWidths,
-            body: [
-              tableHeaders.map(h => ({ 
-                text: this.cleanText(h), 
-                style: 'tableHeader',
-                fillColor: '#edf2f7',
-                margin: [5, 5, 5, 5],
-                alignment: 'left'
-              })),
-              ...tableRows.map(row => 
-                row.map(cell => ({ 
-                  text: this.cleanText(cell), 
-                  style: 'tableCell',
-                  margin: [5, 4, 5, 4],
-                  alignment: 'left'
-                }))
-              )
-            ]
+            body: tableBody
           },
           layout: {
-            hLineWidth: (i: number, node: any) => (i === 0 || i === 1 || i === node.table.body.length) ? 1 : 0.5,
-            vLineWidth: () => 0.5,
-            hLineColor: (i: number, node: any) => (i === 0 || i === 1 || i === node.table.body.length) ? '#cbd5e0' : '#e2e8f0',
-            vLineColor: () => '#e2e8f0',
-            paddingLeft: () => 5,
-            paddingRight: () => 5,
-            paddingTop: () => 4,
-            paddingBottom: () => 4
+            hLineWidth: (i: number, node: any) => {
+              if (i === 0) return 0; // No line above table
+              if (i === 1) return 1.5; // Thick line after header
+              if (i === node.table.body.length) return 1; // Line below table
+              return 0; // No lines between rows
+            },
+            vLineWidth: () => 0, // No vertical lines for cleaner look
+            hLineColor: (i: number) => i === 1 ? '#818cf8' : '#cbd5e1',
+            paddingLeft: () => 0,
+            paddingRight: () => 0,
+            paddingTop: () => 0,
+            paddingBottom: () => 0
           },
-          margin: [0, 8, 0, 12]
+          margin: [0, 10, 0, 14]
         });
         tableRows = [];
         tableHeaders = [];
@@ -381,6 +405,7 @@ class ProfessionalPdfGenerator {
       const line = lines[i];
       const trimmed = line.trim();
 
+      // Skip Table of Contents
       if (trimmed.match(/^#{1,2}\s+(table of contents|contents)/i)) {
         skipToC = true;
         tocDepth = (trimmed.match(/^#+/) || [''])[0].length;
@@ -394,6 +419,7 @@ class ProfessionalPdfGenerator {
         }
       }
 
+      // Code blocks
       if (trimmed.startsWith('```')) {
         flushParagraph();
         if (inCodeBlock) {
@@ -416,6 +442,7 @@ class ProfessionalPdfGenerator {
         continue;
       }
 
+      // Table detection
       if (trimmed.includes('|') && !inTable) {
         flushParagraph();
         const cells = trimmed.split('|').filter(c => c.trim()).map(c => c.trim());
@@ -443,6 +470,7 @@ class ProfessionalPdfGenerator {
         flushTable();
       }
 
+      // Headers with page breaks for modules
       const isModuleHeading = trimmed.startsWith('# ') && 
                               /^#\s+module\s+\d+/i.test(trimmed);
 
@@ -455,26 +483,45 @@ class ProfessionalPdfGenerator {
             content.push({ text: '', pageBreak: 'before' });
           }
           isFirstModule = false;
+          // Add decorative line before module title
+          content.push({
+            canvas: [{
+              type: 'line',
+              x1: 0, y1: 0,
+              x2: 60, y2: 0,
+              lineWidth: 2,
+              lineColor: '#818cf8'
+            }],
+            margin: [0, 0, 0, 10]
+          });
           content.push({ text, style: 'h1Module' });
         } else {
           content.push({ text, style: 'h1Module' });
         }
       } else if (trimmed.startsWith('## ')) {
         flushParagraph();
-        const text = this.cleanText(trimmed.substring(3));
-        content.push({ text, style: 'h2' });
+        content.push({ 
+          text: this.cleanText(trimmed.substring(3)), 
+          style: 'h2' 
+        });
       } else if (trimmed.startsWith('### ')) {
         flushParagraph();
-        content.push({ text: this.cleanText(trimmed.substring(4)), style: 'h3' });
+        content.push({ 
+          text: this.cleanText(trimmed.substring(4)), 
+          style: 'h3' 
+        });
       } else if (trimmed.startsWith('#### ')) {
         flushParagraph();
-        content.push({ text: this.cleanText(trimmed.substring(5)), style: 'h4' });
+        content.push({ 
+          text: this.cleanText(trimmed.substring(5)), 
+          style: 'h4' 
+        });
       } else if (trimmed.match(/^[-*+]\s+/)) {
         flushParagraph();
         content.push({ 
           text: '• ' + this.cleanText(trimmed.replace(/^[-*+]\s+/, '')), 
           style: 'listItem',
-          margin: [10, 3, 0, 3]
+          margin: [12, 3, 0, 3]
         });
       } else if (trimmed.match(/^\d+\.\s+/)) {
         flushParagraph();
@@ -482,29 +529,31 @@ class ProfessionalPdfGenerator {
         content.push({ 
           text: num + '. ' + this.cleanText(trimmed.replace(/^\d+\.\s+/, '')), 
           style: 'listItem',
-          margin: [10, 3, 0, 3]
+          margin: [12, 3, 0, 3]
         });
       } else if (trimmed.startsWith('>')) {
         flushParagraph();
+        // Enhanced blockquote with gradient-like effect
         content.push({
           columns: [
             {
-              width: 3,
+              width: 4,
               canvas: [{
                 type: 'rect',
                 x: 0, y: 0,
-                w: 3, h: 20,
-                color: '#667eea'
+                w: 4, h: 'auto',
+                color: '#818cf8',
+                r: 2
               }]
             },
             {
               width: '*',
               text: this.cleanText(trimmed.substring(1).trim()),
               style: 'blockquote',
-              margin: [8, 0, 0, 0]
+              margin: [12, 0, 0, 0]
             }
           ],
-          margin: [15, 10, 15, 10]
+          margin: [18, 12, 15, 12]
         });
       } else {
         const cleaned = this.cleanText(trimmed);
@@ -525,113 +574,145 @@ class ProfessionalPdfGenerator {
     provider?: string;
     model?: string;
   }): PDFContent[] {
-    // Unchanged
     return [
-      { text: '', margin: [0, 80, 0, 0] },
+      { text: '', margin: [0, 60, 0, 0] },
+      
+      // Decorative top accent
+      {
+        canvas: [{
+          type: 'rect',
+          x: 0, y: 0,
+          w: 80, h: 4,
+          r: 2,
+          color: '#818cf8'
+        }],
+        margin: [0, 0, 0, 20]
+      },
       
       { 
         text: title, 
         style: 'coverTitle',
-        margin: [0, 0, 0, 12]
-      },
-      
-      {
-        text: 'Generated by Pustakam Engine',
-        fontSize: 11,
-        color: '#666666',
-        margin: [0, 0, 0, 40]
-      },
-      
-      {
-        text: 'Abstract',
-        fontSize: 11,
-        bold: true,
-        color: '#1a1a1a',
         margin: [0, 0, 0, 8]
       },
+      
       {
-        text: `This comprehensive ${metadata.modules}-chapter document contains ${metadata.words.toLocaleString()} words of AI-generated content. Each section has been carefully structured to provide in-depth coverage of the topic with clear explanations and practical insights.`,
-        fontSize: 10,
-        lineHeight: 1.6,
-        alignment: 'justify',
-        color: '#1a1a1a',
-        margin: [0, 0, 0, 30]
+        text: 'AI-Powered Knowledge Creation',
+        fontSize: 12,
+        color: '#64748b',
+        margin: [0, 0, 0, 50]
       },
       
+      // Abstract section with subtle background
       {
         stack: [
           {
-            text: 'Document Information',
+            text: 'Abstract',
+            fontSize: 12,
+            bold: true,
+            color: '#0f172a',
+            margin: [0, 0, 0, 10]
+          },
+          {
+            text: `This comprehensive ${metadata.modules}-module document contains ${metadata.words.toLocaleString()} words of professionally structured content. Each section provides detailed coverage with clear explanations, practical insights, and academic rigor.`,
+            fontSize: 10.5,
+            lineHeight: 1.7,
+            alignment: 'justify',
+            color: '#334155',
+            margin: [0, 0, 0, 0]
+          }
+        ],
+        margin: [0, 0, 0, 40]
+      },
+      
+      // Document metadata with refined styling
+      {
+        stack: [
+          {
+            text: 'Document Metadata',
             fontSize: 11,
             bold: true,
-            color: '#1a1a1a',
-            margin: [0, 0, 0, 8]
+            color: '#0f172a',
+            margin: [0, 0, 0, 12]
           },
           {
             columns: [
-              { text: 'Word Count:', width: 80, fontSize: 9, color: '#666666' },
-              { text: metadata.words.toLocaleString(), fontSize: 9, color: '#1a1a1a' }
+              { text: 'Total Words:', width: 90, fontSize: 9.5, color: '#64748b', bold: true },
+              { text: metadata.words.toLocaleString(), fontSize: 9.5, color: '#1e293b' }
             ],
-            margin: [0, 0, 0, 4]
+            margin: [0, 0, 0, 6]
           },
           {
             columns: [
-              { text: 'Chapters:', width: 80, fontSize: 9, color: '#666666' },
-              { text: metadata.modules.toString(), fontSize: 9, color: '#1a1a1a' }
+              { text: 'Modules:', width: 90, fontSize: 9.5, color: '#64748b', bold: true },
+              { text: metadata.modules.toString(), fontSize: 9.5, color: '#1e293b' }
             ],
-            margin: [0, 0, 0, 4]
+            margin: [0, 0, 0, 6]
           },
           {
             columns: [
-              { text: 'Generated:', width: 80, fontSize: 9, color: '#666666' },
-              { text: metadata.date, fontSize: 9, color: '#1a1a1a' }
+              { text: 'Generated:', width: 90, fontSize: 9.5, color: '#64748b', bold: true },
+              { text: metadata.date, fontSize: 9.5, color: '#1e293b' }
             ],
-            margin: [0, 0, 0, 4]
+            margin: [0, 0, 0, 6]
           },
           ...(metadata.provider && metadata.model ? [{
             columns: [
-              { text: 'AI Model:', width: 80, fontSize: 9, color: '#666666' },
-              { text: `${metadata.provider} ${metadata.model}`, fontSize: 9, color: '#1a1a1a' }
+              { text: 'AI Engine:', width: 90, fontSize: 9.5, color: '#64748b', bold: true },
+              { text: `${metadata.provider} ${metadata.model}`, fontSize: 9.5, color: '#1e293b' }
             ],
-            margin: [0, 0, 0, 4]
-          }] : [])
+            margin: [0, 0, 0, 6]
+          }] : []),
+          {
+            columns: [
+              { text: 'Typography:', width: 90, fontSize: 9.5, color: '#64748b', bold: true },
+              { text: `${this.fontFamily} (Professional Monospace)`, fontSize: 9.5, color: '#1e293b' }
+            ],
+            margin: [0, 0, 0, 6]
+          }
         ]
       },
       
-      { text: '', margin: [0, 0, 0, 80] },
+      { text: '', margin: [0, 0, 0, 90] },
       
+      // Footer with refined branding
       {
         stack: [
           {
             canvas: [{
               type: 'line',
               x1: 0, y1: 0,
-              x2: 100, y2: 0,
-              lineWidth: 1,
-              lineColor: '#1a1a1a'
+              x2: 120, y2: 0,
+              lineWidth: 1.5,
+              lineColor: '#cbd5e1'
             }],
-            margin: [0, 0, 0, 12]
+            margin: [0, 0, 0, 16]
           },
           {
             text: 'Pustakam Engine',
-            fontSize: 10,
+            fontSize: 11,
             bold: true,
-            color: '#1a1a1a',
+            color: '#0f172a',
+            margin: [0, 0, 0, 6]
+          },
+          {
+            text: 'Advanced AI Content Generation Platform',
+            fontSize: 9,
+            color: '#64748b',
+            margin: [0, 0, 0, 10]
+          },
+          {
+            text: 'Created by Tanmay Kalbande',
+            fontSize: 9,
+            color: '#475569',
             margin: [0, 0, 0, 4]
           },
           {
-            text: 'AI-Powered Knowledge Creation',
-            fontSize: 9,
-            color: '#666666',
-            margin: [0, 0, 0, 8]
-          },
-          {
-            text: 'Tanmay Kalbande',
-            fontSize: 9,
-            color: '#1a1a1a',
+            text: 'linkedin.com/in/tanmay-kalbande',
+            fontSize: 8.5,
+            color: '#818cf8',
             link: 'https://www.linkedin.com/in/tanmay-kalbande/',
             decoration: 'underline',
-            decorationColor: '#1a1a1a'
+            decorationColor: '#818cf8'
           }
         ]
       },
@@ -641,12 +722,11 @@ class ProfessionalPdfGenerator {
   }
 
   public async generate(project: BookProject, onProgress: (progress: number) => void): Promise<void> {
-    console.log('🎨 Starting professional PDF generation for:', project.title);
+    console.log('🎨 Generating enhanced professional PDF');
     onProgress(10);
     
     const pdfMakeLib = await loadPdfMake();
     
-    // Set main font from setup
     const hasAptosMono = Object.keys(pdfMakeLib.vfs).some(key => key.includes('Aptos-Mono'));
     this.fontFamily = hasAptosMono ? 'Aptos-Mono' : 'Roboto';
     
@@ -680,35 +760,48 @@ class ProfessionalPdfGenerator {
       content: this.content,
       styles: this.styles,
       defaultStyle: { 
-        font: this.fontFamily,  // Aptos-Mono or Roboto
-        fontSize: 10, 
-        color: '#1a1a1a',
-        lineHeight: 1.5  // Optimized for mono
+        font: this.fontFamily,
+        fontSize: 10.5, 
+        color: '#1e293b',
+        lineHeight: 1.6
       },
       pageSize: 'A4',
-      pageMargins: [65, 75, 65, 70],
+      pageMargins: [70, 80, 70, 75],
       
       header: (currentPage: number) => {
         if (currentPage <= 1) return {};
         
         return {
-          columns: [
+          stack: [
             {
-              text: project.title,
-              fontSize: 8,
-              color: '#666666',
-              italics: true,
-              width: '*'
+              columns: [
+                {
+                  text: project.title,
+                  fontSize: 8.5,
+                  color: '#64748b',
+                  italics: true,
+                  width: '*'
+                },
+                {
+                  text: `${currentPage - 1}`,
+                  fontSize: 8.5,
+                  color: '#64748b',
+                  alignment: 'right',
+                  width: 'auto'
+                }
+              ],
+              margin: [70, 30, 70, 0]
             },
             {
-              text: `Page ${currentPage - 1}`,
-              fontSize: 8,
-              color: '#666666',
-              alignment: 'right',
-              width: 'auto'
+              canvas: [{
+                type: 'line',
+                x1: 70, y1: 8,
+                x2: 525, y2: 8,
+                lineWidth: 0.5,
+                lineColor: '#e2e8f0'
+              }]
             }
-          ],
-          margin: [65, 22, 65, 0]
+          ]
         };
       },
       
@@ -719,21 +812,21 @@ class ProfessionalPdfGenerator {
           columns: [
             { 
               text: 'Pustakam Engine', 
-              fontSize: 7,
-              color: '#999999',
-              margin: [65, 0, 0, 0],
+              fontSize: 7.5,
+              color: '#94a3b8',
+              margin: [70, 0, 0, 0],
               width: '*'
             },
             { 
-              text: 'https://www.linkedin.com/in/tanmay-kalbande/', 
-              fontSize: 7,
-              color: '#999999',
+              text: 'linkedin.com/in/tanmay-kalbande', 
+              fontSize: 7.5,
+              color: '#94a3b8',
               alignment: 'right',
-              margin: [0, 0, 65, 0],
+              margin: [0, 0, 70, 0],
               width: '*'
             }
           ],
-          margin: [0, 20, 0, 0]
+          margin: [0, 25, 0, 0]
         };
       },
       
@@ -742,12 +835,12 @@ class ProfessionalPdfGenerator {
         author: 'Pustakam Engine - Tanmay Kalbande', 
         creator: 'Pustakam Engine',
         subject: project.goal,
-        keywords: 'AI, Knowledge, Education, Pustakam'
+        keywords: 'AI, Knowledge, Education, Pustakam, Professional'
       }
     };
 
     onProgress(85);
-    console.log(`📄 Creating PDF with ${this.fontFamily} font throughout`);
+    console.log(`📄 Creating enhanced PDF with ${this.fontFamily}`);
 
     return new Promise((resolve, reject) => {
       try {
@@ -758,49 +851,63 @@ class ProfessionalPdfGenerator {
           .toLowerCase()
           .substring(0, 50)}_${new Date().toISOString().slice(0, 10)}.pdf`;
         
-        const hasEmojis = /[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu.test(
-          project.finalBook || ''
-        );
-        
-        const hasComplexFormatting = (project.finalBook || '').includes('```') || 
-                                     (project.finalBook || '').includes('~~');
-        
+        // Enhanced download popup
         const popup = document.createElement('div');
-        popup.className = 'fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in';
+        popup.className = 'fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-fade-in';
         popup.innerHTML = `
-          <div class="bg-[#1F1F1F] border border-[#2A2A2A] rounded-2xl shadow-2xl max-w-md w-full p-6 animate-fade-in-up">
-            <div class="flex items-center gap-3 mb-4">
-              <div class="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center">
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-blue-400">
+          <div class="bg-gradient-to-br from-gray-900 to-gray-800 border border-gray-700 rounded-2xl shadow-2xl max-w-lg w-full p-8 animate-fade-in-up">
+            <div class="flex items-center gap-4 mb-6">
+              <div class="w-14 h-14 rounded-xl bg-indigo-500/20 flex items-center justify-center ring-2 ring-indigo-400/30">
+                <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-indigo-400">
                   <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
                   <polyline points="14 2 14 8 20 8"/>
                   <line x1="16" y1="13" x2="8" y2="13"/>
                   <line x1="16" y1="17" x2="8" y2="17"/>
-                  <polyline points="10 9 9 9 8 9"/>
                 </svg>
               </div>
-              <h3 class="text-lg font-semibold text-white">Professional PDF Ready</h3>
+              <div>
+                <h3 class="text-xl font-bold text-white mb-1">Enhanced PDF Ready</h3>
+                <p class="text-sm text-gray-400">Professional academic formatting applied</p>
+              </div>
             </div>
             
-            <div class="space-y-3 mb-6">
-              <p class="text-sm text-gray-300 leading-relaxed">
-                Your document has been formatted with professional typography and layout inspired by academic publications.
+            <div class="bg-gray-800/50 rounded-xl p-5 mb-6 border border-gray-700/50">
+              <p class="text-sm text-gray-300 leading-relaxed mb-4">
+                Your document has been beautifully formatted with refined typography, elegant tables, and subtle design effects for maximum readability.
               </p>
-              <ul class="space-y-2 text-sm text-gray-400">
-                <li class="flex items-start gap-2"><span class="text-green-400 shrink-0">✓</span><span>Clean, readable 10pt body text</span></li>
-                <li class="flex items-start gap-2"><span class="text-green-400 shrink-0">✓</span><span>Professional cover page design</span></li>
-                <li class="flex items-start gap-2"><span class="text-green-400 shrink-0">✓</span><span>Justified text alignment</span></li>
-                <li class="flex items-start gap-2"><span class="text-green-400 shrink-0">✓</span><span>${this.fontFamily} font for consistent monospaced style</span></li>
-                ${hasEmojis ? '<li class="flex items-start gap-2"><span class="text-yellow-400 shrink-0">•</span><span>Emojis removed for compatibility</span></li>' : ''}
-                ${hasComplexFormatting ? '<li class="flex items-start gap-2"><span class="text-yellow-400 shrink-0">•</span><span>Advanced formatting simplified</span></li>' : ''}
-              </ul>
+              <div class="grid grid-cols-2 gap-3">
+                <div class="flex items-start gap-2">
+                  <span class="text-emerald-400 shrink-0 mt-0.5">✓</span>
+                  <span class="text-xs text-gray-300">Enhanced table styling</span>
+                </div>
+                <div class="flex items-start gap-2">
+                  <span class="text-emerald-400 shrink-0 mt-0.5">✓</span>
+                  <span class="text-xs text-gray-300">Refined typography</span>
+                </div>
+                <div class="flex items-start gap-2">
+                  <span class="text-emerald-400 shrink-0 mt-0.5">✓</span>
+                  <span class="text-xs text-gray-300">Subtle visual accents</span>
+                </div>
+                <div class="flex items-start gap-2">
+                  <span class="text-emerald-400 shrink-0 mt-0.5">✓</span>
+                  <span class="text-xs text-gray-300">Professional cover</span>
+                </div>
+                <div class="flex items-start gap-2">
+                  <span class="text-emerald-400 shrink-0 mt-0.5">✓</span>
+                  <span class="text-xs text-gray-300">${this.fontFamily} monospace</span>
+                </div>
+                <div class="flex items-start gap-2">
+                  <span class="text-emerald-400 shrink-0 mt-0.5">✓</span>
+                  <span class="text-xs text-gray-300">Optimized spacing</span>
+                </div>
+              </div>
             </div>
             
             <div class="flex gap-3">
-              <button id="cancel-pdf" class="flex-1 px-4 py-2.5 bg-white/5 border border-white/10 rounded-lg text-gray-300 hover:bg-white/10 hover:text-white font-medium transition-all">
+              <button id="cancel-pdf" class="flex-1 px-5 py-3 bg-gray-700/50 border border-gray-600 rounded-xl text-gray-300 hover:bg-gray-700 hover:text-white font-medium transition-all duration-200">
                 Cancel
               </button>
-              <button id="download-pdf" class="flex-1 px-4 py-2.5 bg-blue-500 hover:bg-blue-600 rounded-lg text-white font-semibold transition-all shadow-lg">
+              <button id="download-pdf" class="flex-1 px-5 py-3 bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 rounded-xl text-white font-semibold transition-all duration-200 shadow-lg shadow-indigo-500/25">
                 Download PDF
               </button>
             </div>
@@ -821,7 +928,7 @@ class ProfessionalPdfGenerator {
         downloadBtn?.addEventListener('click', () => {
           document.body.removeChild(popup);
           pdfDocGenerator.download(filename, () => {
-            console.log('✅ Professional PDF downloaded:', filename);
+            console.log('✅ Enhanced professional PDF downloaded:', filename);
             onProgress(100);
             resolve();
           });
@@ -852,7 +959,7 @@ export const pdfService = {
     try {
       const generator = new ProfessionalPdfGenerator();
       await generator.generate(project, onProgress);
-      console.log('🎉 Professional PDF generation completed successfully');
+      console.log('🎉 Enhanced PDF generation completed successfully');
     } catch (error: any) {
       console.error('💥 PDF generation error:', error);
       
