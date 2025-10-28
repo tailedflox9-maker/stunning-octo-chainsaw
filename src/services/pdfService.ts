@@ -572,7 +572,7 @@ class EnhancedPdfGenerator {
           margin: [indent * 2 + 10, 3, 0, 3]
         };
         
-        currentListItems.push(listItem);
+        currentListItems.push( listItem );
       } 
       // Blockquote
       else if (trimmed.startsWith('>')) {
@@ -628,6 +628,7 @@ class EnhancedPdfGenerator {
       const style = entry.level === 1 ? 'tocLevel1' : 
                     entry.level === 2 ? 'tocLevel2' : 'tocLevel3';
       
+      // *** FIX APPLIED HERE: The 'decoration' property is completely removed ***
       tocContent.push({
         text: entry.text,
         style: style,
