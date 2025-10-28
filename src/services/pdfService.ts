@@ -207,7 +207,7 @@ class PremiumPdfGenerator {
       paragraph: { 
         fontSize: 12, 
         lineHeight: 1.9, 
-        alignment: 'justify', 
+        alignment: 'left', 
         margin: [0, 0, 0, 18], 
         color: '#1E293B'
       },
