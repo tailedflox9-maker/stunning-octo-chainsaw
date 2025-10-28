@@ -241,8 +241,7 @@ class EnhancedPdfGenerator {
         color: '#1e293b',
         fillColor: '#f8fafc',
         preserveLeadingSpaces: true,
-        lineHeight: 1.5,
-        font: 'Courier'
+        lineHeight: 1.5
       },
       blockquote: { 
         fontSize: 10.5, 
@@ -297,7 +296,7 @@ class EnhancedPdfGenerator {
       } else if (match[5]) { // __bold__
         result.push({ text: match[5], bold: true });
       } else if (match[7]) { // `code`
-        result.push({ text: match[7], font: 'Courier', fontSize: 9.5, background: '#f1f5f9' });
+        result.push({ text: match[7], fontSize: 9.5, background: '#f1f5f9', color: '#dc2626' });
       } else if (match[8] && match[9]) { // [text](url)
         result.push({ text: match[8], link: match[9], color: '#3b82f6', decoration: 'underline' });
       }
