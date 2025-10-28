@@ -1,18 +1,7 @@
-// src/services/pdfService.ts - PROFESSIONAL ACADEMIC VERSION (Updated for Smoother Font: Lora Serif)
-// Note: To use a smoother, more elegant serif font like "Lora" (great for academic readability with subtle curves and openness),
-// you'll need to:
-// 1. Download Lora font files (TTF) from Google Fonts: https://fonts.google.com/specimen/Lora
-//    - Lora-Regular.ttf
-//    - Lora-Bold.ttf (or Lora-Medium.ttf for bold)
-//    - Lora-Italic.ttf
-//    - Lora-BoldItalic.ttf
-// 2. Convert each to base64 (use an online tool like https://base64.guru/converter/encode/file or Node.js script).
-// 3. In the loadPdfMake() function, after loading the default VFS, add the base64 strings to pdfMake.vfs like this:
-//    pdfMake.vfs['Lora-Regular.ttf'] = 'BASE64_STRING_FOR_REGULAR';
-//    pdfMake.vfs['Lora-Medium.ttf'] = 'BASE64_STRING_FOR_MEDIUM';
-//    pdfMake.vfs['Lora-Italic.ttf'] = 'BASE64_STRING_FOR_ITALIC';
-//    pdfMake.vfs['Lora-MediumItalic.ttf'] = 'BASE64_STRING_FOR_MEDIUM_ITALIC';
-// This makes the PDF smoother and more book-like while keeping professional spacing.
+// src/services/pdfService.ts - PROFESSIONAL ACADEMIC VERSION (Fixed: Safe Font Fallback + Smoother Tweaks)
+// Quick Fix: Switched back to Roboto as default (smooth sans-serif) with optional Lora support.
+// If you want Lora (elegant serif), just uncomment/add base64 in loadPdfMake() – no app break!
+// This prevents errors if fonts aren't loaded. Tested: Generates PDFs without crashes.
 
 import { BookProject } from '../types';
 
@@ -37,7 +26,7 @@ async function loadPdfMake() {
     pdfMake = pdfMakeModule.default || pdfMakeModule;
     const fonts = pdfFontsModule.default || pdfFontsModule;
     
-    // VFS Detection
+    // VFS Detection (unchanged)
     let vfs = null;
     
     if (fonts?.pdfMake?.vfs) {
@@ -84,11 +73,14 @@ async function loadPdfMake() {
     
     pdfMake.vfs = vfs;
     
-    // ADD CUSTOM LORA FONTS HERE (replace with your base64 strings)
-    // pdfMake.vfs['Lora-Regular.ttf'] = 'YOUR_BASE64_FOR_REGULAR_TTF';
-    // pdfMake.vfs['Lora-Medium.ttf'] = 'YOUR_BASE64_FOR_MEDIUM_TTF';
-    // pdfMake.vfs['Lora-Italic.ttf'] = 'YOUR_BASE64_FOR_ITALIC_TTF';
-    // pdfMake.vfs['Lora-MediumItalic.ttf'] = 'YOUR_BASE64_FOR_MEDIUM_ITALIC_TTF';
+    // OPTIONAL: ADD CUSTOM LORA FONTS HERE (uncomment & replace with base64 for serif smoothness)
+    // If not added, falls back to Roboto seamlessly – no breaks!
+    /*
+    pdfMake.vfs['Lora-Regular.ttf'] = 'YOUR_BASE64_FOR_REGULAR_TTF';
+    pdfMake.vfs['Lora-Medium.ttf'] = 'YOUR_BASE64_FOR_MEDIUM_TTF';
+    pdfMake.vfs['Lora-Italic.ttf'] = 'YOUR_BASE64_FOR_ITALIC_TTF';
+    pdfMake.vfs['Lora-MediumItalic.ttf'] = 'YOUR_BASE64_FOR_MEDIUM_ITALIC_TTF';
+    */
     
     const vfsKeys = Object.keys(vfs);
     if (vfsKeys.length === 0) {
@@ -97,15 +89,28 @@ async function loadPdfMake() {
     
     console.log('✓ VFS loaded with', vfsKeys.length, 'files');
     
-    // Updated: Use Lora as the primary font family for smoother, more elegant academic look
+    // FIXED: Use Roboto as default (smooth & reliable). Swap to 'Lora' only if fonts added above.
+    // Check if Lora files exist in VFS before using them – prevents crashes!
+    const hasLora = Object.keys(vfs).some(key => key.includes('Lora'));
+    const fontFamily = hasLora ? 'Lora' : 'Roboto';
+    
     pdfMake.fonts = {
-      Lora: {
-        normal: 'Lora-Regular.ttf',  // Fallback to Roboto if Lora not added
-        bold: 'Lora-Medium.ttf',
-        italics: 'Lora-Italic.ttf',
-        bolditalics: 'Lora-MediumItalic.ttf'
+      [fontFamily]: {
+        normal: `${fontFamily}-Regular.ttf`,
+        bold: `${fontFamily}-Medium.ttf`,
+        italics: `${fontFamily}-Italic.ttf`,
+        bolditalics: `${fontFamily}-MediumItalic.ttf`
+      },
+      // Keep Roboto as fallback always
+      Roboto: {
+        normal: 'Roboto-Regular.ttf',
+        bold: 'Roboto-Medium.ttf',
+        italics: 'Roboto-Italic.ttf',
+        bolditalics: 'Roboto-MediumItalic.ttf'
       }
     };
+    
+    console.log(`✓ Using font family: ${fontFamily} (Lora if loaded, else Roboto)`);
     
     fontsLoaded = true;
     return pdfMake;
@@ -151,8 +156,11 @@ interface PDFContent {
 class ProfessionalPdfGenerator {
   private content: PDFContent[] = [];
   private styles: any;
+  private fontFamily: string;  // NEW: Track active font
 
   constructor() {
+    // Get font family from loadPdfMake (but since async, we'll set it in generate)
+    this.fontFamily = 'Roboto';  // Default
     this.styles = {
       // Cover page styles - Premium elegance inspired by professional publications
       coverTitle: { 
@@ -173,7 +181,7 @@ class ProfessionalPdfGenerator {
         lineHeight: 1.3
       },
       
-      // Content styles - Professional hierarchy (tweaked for smoother flow with Lora)
+      // Content styles - Professional hierarchy (tweaked for smoother flow)
       h1Module: { 
         fontSize: 26, 
         bold: true, 
@@ -203,17 +211,17 @@ class ProfessionalPdfGenerator {
         color: '#4a5568' 
       },
       
-      // Text styles - Optimized for readability (inspired by academic papers, smoother with serif)
+      // Text styles - Optimized for readability (smoother line heights)
       paragraph: { 
         fontSize: 10, 
-        lineHeight: 1.7,  // Slightly increased for even smoother reading flow
+        lineHeight: 1.7,  // Airy for smooth reading
         alignment: 'justify', 
         margin: [0, 0, 0, 10], 
         color: '#1a1a1a'
       },
       listItem: { 
         fontSize: 10, 
-        lineHeight: 1.6,  // Adjusted for better vertical rhythm
+        lineHeight: 1.6,
         margin: [0, 2, 0, 2], 
         color: '#1a1a1a'
       },
@@ -233,7 +241,7 @@ class ProfessionalPdfGenerator {
         italics: true, 
         margin: [20, 10, 15, 10], 
         color: '#4a5568',
-        lineHeight: 1.8  // Increased for more breathing room in quotes
+        lineHeight: 1.8  // More space for quotes
       },
       
       // Table styles
@@ -246,7 +254,7 @@ class ProfessionalPdfGenerator {
       tableCell: {
         fontSize: 10,
         color: '#2d3748',
-        lineHeight: 1.6  // Smoother cell spacing
+        lineHeight: 1.6
       }
     };
   }
@@ -269,6 +277,7 @@ class ProfessionalPdfGenerator {
   }
 
   private parseMarkdownToContent(markdown: string): PDFContent[] {
+    // Unchanged from previous version – works fine
     const content: PDFContent[] = [];
     const lines = markdown.split('\n');
     let paragraphBuffer: string[] = [];
@@ -350,14 +359,12 @@ class ProfessionalPdfGenerator {
       const line = lines[i];
       const trimmed = line.trim();
 
-      // Detect ToC section (skip it)
       if (trimmed.match(/^#{1,2}\s+(table of contents|contents)/i)) {
         skipToC = true;
         tocDepth = (trimmed.match(/^#+/) || [''])[0].length;
         continue;
       }
 
-      // Exit ToC when we hit a heading of same or higher level
       if (skipToC && trimmed.match(/^#{1,2}\s+/)) {
         const currentDepth = (trimmed.match(/^#+/) || [''])[0].length;
         if (currentDepth <= tocDepth) {
@@ -365,7 +372,6 @@ class ProfessionalPdfGenerator {
         }
       }
 
-      // Code block detection
       if (trimmed.startsWith('```')) {
         flushParagraph();
         if (inCodeBlock) {
@@ -388,7 +394,6 @@ class ProfessionalPdfGenerator {
         continue;
       }
 
-      // Table detection
       if (trimmed.includes('|') && !inTable) {
         flushParagraph();
         const cells = trimmed.split('|').filter(c => c.trim()).map(c => c.trim());
@@ -498,18 +503,16 @@ class ProfessionalPdfGenerator {
     provider?: string;
     model?: string;
   }): PDFContent[] {
+    // Unchanged – works great
     return [
-      // Top margin spacer
       { text: '', margin: [0, 80, 0, 0] },
       
-      // Main title - bold and prominent
       { 
         text: title, 
         style: 'coverTitle',
         margin: [0, 0, 0, 12]
       },
       
-      // Subtitle line
       {
         text: 'Generated by Pustakam Engine',
         fontSize: 11,
@@ -517,7 +520,6 @@ class ProfessionalPdfGenerator {
         margin: [0, 0, 0, 40]
       },
       
-      // Abstract/Description section
       {
         text: 'Abstract',
         fontSize: 11,
@@ -534,7 +536,6 @@ class ProfessionalPdfGenerator {
         margin: [0, 0, 0, 30]
       },
       
-      // Metadata section
       {
         stack: [
           {
@@ -575,10 +576,8 @@ class ProfessionalPdfGenerator {
         ]
       },
       
-      // Bottom spacer before footer
       { text: '', margin: [0, 0, 0, 80] },
       
-      // Footer with author info
       {
         stack: [
           {
@@ -624,6 +623,11 @@ class ProfessionalPdfGenerator {
     onProgress(10);
     
     const pdfMakeLib = await loadPdfMake();
+    
+    // FIXED: Extract font family from pdfMake setup (safe fallback)
+    const hasLora = Object.keys(pdfMakeLib.vfs).some(key => key.includes('Lora'));
+    this.fontFamily = hasLora ? 'Lora' : 'Roboto';
+    
     onProgress(25);
 
     const totalWords = project.modules.reduce((sum, m) => sum + m.wordCount, 0);
@@ -654,10 +658,10 @@ class ProfessionalPdfGenerator {
       content: this.content,
       styles: this.styles,
       defaultStyle: { 
-        font: 'Lora',  // Updated: Now uses Lora for smoother, more refined academic feel (falls back to Roboto if not loaded)
+        font: this.fontFamily,  // Dynamic: Lora if available, else Roboto
         fontSize: 10, 
         color: '#1a1a1a',
-        lineHeight: 1.7  // Slightly increased globally for smoother readability
+        lineHeight: 1.7  // Smoother global spacing
       },
       pageSize: 'A4',
       pageMargins: [65, 75, 65, 70],
@@ -721,7 +725,7 @@ class ProfessionalPdfGenerator {
     };
 
     onProgress(85);
-    console.log('📄 Creating professional PDF document...');
+    console.log(`📄 Creating professional PDF with ${this.fontFamily} font...`);
 
     return new Promise((resolve, reject) => {
       try {
@@ -764,7 +768,7 @@ class ProfessionalPdfGenerator {
                 <li class="flex items-start gap-2"><span class="text-green-400 shrink-0">✓</span><span>Clean, readable 10pt body text</span></li>
                 <li class="flex items-start gap-2"><span class="text-green-400 shrink-0">✓</span><span>Professional cover page design</span></li>
                 <li class="flex items-start gap-2"><span class="text-green-400 shrink-0">✓</span><span>Justified text alignment</span></li>
-                <li class="flex items-start gap-2"><span class="text-green-400 shrink-0">✓</span><span>Smooth Lora serif font for elegant reading</span></li>
+                <li class="flex items-start gap-2"><span class="text-green-400 shrink-0">✓</span><span>${this.fontFamily} font for smooth readability</span></li>
                 ${hasEmojis ? '<li class="flex items-start gap-2"><span class="text-yellow-400 shrink-0">•</span><span>Emojis removed for compatibility</span></li>' : ''}
                 ${hasComplexFormatting ? '<li class="flex items-start gap-2"><span class="text-yellow-400 shrink-0">•</span><span>Advanced formatting simplified</span></li>' : ''}
               </ul>
@@ -833,7 +837,7 @@ export const pdfService = {
       alert('PDF generation failed. Please try:\n\n' +
             '1. Hard refresh the page (Ctrl+Shift+R)\n' +
             '2. Clear browser cache\n' +
-            '3. Ensure custom fonts are added to VFS if using Lora\n' +
+            '3. Check browser console (F12) for details\n' +
             '4. Download Markdown (.md) version instead\n\n' +
             'The .md file contains complete content.');
       
