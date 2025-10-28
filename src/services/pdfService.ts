@@ -479,17 +479,6 @@ class PremiumPdfGenerator {
     model?: string;
   }): PDFContent[] {
     return [
-      // Simple top accent
-      {
-        canvas: [{
-          type: 'rect',
-          x: 0, y: 0,
-          w: 515, h: 3,
-          color: '#3B82F6'
-        }],
-        margin: [0, 0, 0, 0]
-      },
-      
       // Title - centered and bold
       { 
         text: title, 
@@ -498,7 +487,7 @@ class PremiumPdfGenerator {
         alignment: 'center',
         color: '#0F172A',
         lineHeight: 1.3,
-        margin: [40, 220, 40, 40]
+        margin: [40, 250, 40, 40]
       },
       
       // Simple horizontal line
@@ -548,8 +537,7 @@ class PremiumPdfGenerator {
         text: 'Pustakam AI',
         fontSize: 12,
         alignment: 'center',
-        color: '#3B82F6',
-        bold: true,
+        color: '#64748B',
         margin: [0, 140, 0, 0]
       },
       
@@ -604,62 +592,43 @@ class PremiumPdfGenerator {
       pageMargins: [75, 90, 75, 80],
       
       header: (currentPage: number) => {
-        if (currentPage <= 2) return {};
+        if (currentPage <= 1) return {}; // Skip cover page
         
         return {
-          columns: [
-            { 
-              text: project.title, 
-              style: { 
-                fontSize: 9, 
-                color: '#64748B', 
-                italics: true 
-              }, 
-              margin: [75, 30, 0, 0], 
-              width: '*' 
-            },
-            { 
-              canvas: [{ 
-                type: 'line', 
-                x1: 0, y1: 0, 
-                x2: 80, y2: 0, 
-                lineWidth: 0.5, 
-                lineColor: '#CBD5E0' 
-              }], 
-              margin: [0, 35, 75, 0], 
-              width: 80 
-            }
-          ]
+          text: project.title,
+          fontSize: 9,
+          color: '#64748B',
+          italics: true,
+          margin: [75, 30, 75, 0]
         };
       },
       
       footer: (currentPage: number, pageCount: number) => {
-        if (currentPage <= 2) return {};
+        if (currentPage <= 1) return {}; // Skip cover page
         
-        const pageNumber = currentPage - 2;
+        const pageNumber = currentPage - 1; // Start counting from content pages
         
         return {
           columns: [
             { 
               text: 'Pustakam AI', 
-              style: { 
-                fontSize: 8, 
-                color: '#94A3B8' 
-              }, 
-              margin: [75, 0, 0, 0] 
+              fontSize: 8,
+              color: '#94A3B8',
+              margin: [75, 0, 0, 0],
+              width: '*'
             },
             { 
               text: `${pageNumber}`, 
               alignment: 'center', 
-              style: { 
-                fontSize: 11, 
-                color: '#475569', 
-                bold: true 
-              } 
+              fontSize: 11,
+              color: '#475569',
+              bold: true,
+              width: 'auto'
             },
             { 
               text: '', 
-              margin: [0, 0, 75, 0] 
+              margin: [0, 0, 75, 0],
+              width: '*'
             }
           ],
           margin: [0, 30, 0, 0]
