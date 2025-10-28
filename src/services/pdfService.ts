@@ -632,7 +632,6 @@ class EnhancedPdfGenerator {
         text: entry.text,
         style: style,
         link: entry.id,
-        // decoration: 'none', // <-- THIS LINE WAS REMOVED TO FIX THE ERROR
         color: entry.level === 1 ? '#1e293b' : '#475569'
       });
     });
