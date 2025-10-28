@@ -1,4 +1,4 @@
-// src/services/pdfService.ts - PROFESSIONAL ACADEMIC VERSION (UPDATED - FIXED VFS FALLBACK)
+// src/services/pdfService.ts - PROFESSIONAL ACADEMIC VERSION (UPDATED - FIXED VFS LOADING)
 import { BookProject } from '../types';
 
 let isGenerating = false;
@@ -14,44 +14,32 @@ async function loadPdfMake() {
   try {
     console.log('🔄 Loading pdfMake modules...');
     
-    const [pdfMakeModule, pdfFontsModule] = await Promise.all([
-      import('pdfmake/build/pdfmake'),
-      import('pdfmake/build/vfs_fonts')
-    ]);
-    
+    // Load pdfMake first
+    const pdfMakeModule = await import('pdfmake/build/pdfmake');
     pdfMake = pdfMakeModule.default || pdfMakeModule;
-    const fonts = pdfFontsModule.default || pdfFontsModule;
     
-    // Simplified VFS Detection
-    let vfs = null;
-    if (fonts?.pdfMake?.vfs) {
-      vfs = fonts.pdfMake.vfs;
-    } else if (fonts?.vfs) {
-      vfs = fonts.vfs;
-    } else if (pdfFontsModule?.pdfMake?.vfs) {
-      vfs = pdfFontsModule.pdfMake.vfs;
-    } else if (pdfFontsModule?.default?.pdfMake?.vfs) {
-      vfs = pdfFontsModule.default.pdfMake.vfs;
-    }
+    // Load vfs_fonts as side-effect (populates pdfMake.vfs in ESM environments)
+    await import('pdfmake/build/vfs_fonts');
+    
+    // Now retrieve VFS from pdfMake
+    let vfs = pdfMake.vfs;
     
     if (!vfs) {
-      throw new Error('FONT_VFS_NOT_FOUND: VFS not found in pdfFonts module. Ensure pdfmake/build/vfs_fonts.js is correctly imported and contains valid base64 font data. Check your bundler configuration (e.g., webpack may need special handling for vfs_fonts).');
+      throw new Error('FONT_VFS_NOT_FOUND: VFS not populated after import. This is common in bundled environments like Vercel/Vite/Next.js. Solutions:\n1. In vite.config.js: add { optimizeDeps: { exclude: ["pdfmake/build/vfs_fonts"] } }\n2. Or treat vfs_fonts as raw: import vfsFontsRaw from "pdfmake/build/vfs_fonts.js?raw"; then eval(vfsFontsRaw) before importing pdfMake.\n3. For Next.js: Ensure client-side only ("use client") and check webpack config for raw-loader on vfs_fonts.');
     }
     
     // Validate VFS has required font files
     const requiredFonts = ['Roboto-Regular.ttf', 'Roboto-Medium.ttf', 'Roboto-Italic.ttf', 'Roboto-MediumItalic.ttf'];
     const missingFonts = requiredFonts.filter(font => !vfs[font]);
     if (missingFonts.length > 0) {
-      throw new Error(`VFS_MISSING_FONTS: Required fonts not found in VFS: ${missingFonts.join(', ')}. Verify vfs_fonts.js includes Roboto fonts.`);
+      throw new Error(`VFS_MISSING_FONTS: Required fonts not found in VFS: ${missingFonts.join(', ')}. Verify bundler includes full vfs_fonts.js without truncation.`);
     }
     
     // Quick buffer length check for first font to catch truncated data early
     const sampleFontData = vfs['Roboto-Regular.ttf'];
-    if (typeof sampleFontData === 'string' && sampleFontData.length < 10000) {  // Rough check: real TTF base64 is ~200kB+
-      throw new Error('VFS_TRUNCATED_DATA: Font data appears truncated (too short). Ensure full vfs_fonts.js is loaded without bundler truncation.');
+    if (typeof sampleFontData === 'string' && sampleFontData.length < 100000) {  // Rough check: real TTF base64 is ~200kB+
+      throw new Error('VFS_TRUNCATED_DATA: Font data appears truncated (too short). Ensure bundler loads full base64 from vfs_fonts.js (e.g., disable compression/minification for it).');
     }
-    
-    pdfMake.vfs = vfs;
     
     const vfsKeys = Object.keys(vfs);
     console.log('✓ VFS loaded with', vfsKeys.length, 'files');
@@ -215,42 +203,61 @@ class ProfessionalPdfGenerator {
 
   private parseInlineMarkdown(text: string): any[] {
     // Improved: Basic inline parser for bold, italics, links (returns array of styled segments)
+    // Simplified: Handle bold first, then italics on remaining text
     const segments: any[] = [];
-    const boldRegex = /\*\*(.+?)\*\*/g;
-    const italicRegex = /\*(.+?)\*/g;
-    const linkRegex = /\[(.+?)\]\((.+?)\)/g;
-
-    let lastIndex = 0;
-    let match;
-
+    
     // Handle bold
-    while ((match = boldRegex.exec(text)) !== null) {
-      if (match.index > lastIndex) {
-        segments.push(text.substring(lastIndex, match.index));
+    let remainingText = text;
+    let boldMatch;
+    const boldRegex = /\*\*(.+?)\*\*/g;
+    let lastIndex = 0;
+    while ((boldMatch = boldRegex.exec(remainingText)) !== null) {
+      if (boldMatch.index > lastIndex) {
+        segments.push(remainingText.substring(lastIndex, boldMatch.index));
       }
-      segments.push({ text: match[1], bold: true });
-      lastIndex = match.index + match[0].length;
+      segments.push({ text: boldMatch[1], bold: true });
+      lastIndex = boldMatch.index + boldMatch[0].length;
+    }
+    if (lastIndex < remainingText.length) {
+      remainingText = remainingText.substring(lastIndex);
+    } else {
+      remainingText = text.replace(boldRegex, (match, p1) => p1); // Remove bold markers for next pass
     }
 
-    // Handle italics (simple, assumes no overlap with bold for now)
-    let italicText = text;
+    // Handle italics on remaining (non-bold) text
+    let italicMatch;
+    const italicRegex = /\*(.+?)\*/g;
     lastIndex = 0;
-    while ((match = italicRegex.exec(italicText)) !== null) {
-      if (match.index > lastIndex) {
-        segments.push(italicText.substring(lastIndex, match.index));
+    while ((italicMatch = italicRegex.exec(remainingText)) !== null) {
+      if (italicMatch.index > lastIndex) {
+        segments.push(remainingText.substring(lastIndex, italicMatch.index));
       }
-      segments.push({ text: match[1], italics: true });
-      lastIndex = match.index + match[0].length;
+      segments.push({ text: italicMatch[1], italics: true });
+      lastIndex = italicMatch.index + italicMatch[0].length;
+    }
+    if (lastIndex < remainingText.length) {
+      segments.push(remainingText.substring(lastIndex));
     }
 
-    // Handle links (simplified)
-    // For production, use a full parser like markdown-it
+    // Basic link handling (append to last segment or add new)
+    // Simplified: Replace [text](url) with {text, link}
+    // For full, use a library
+
+    // Flatten and clean
+    const flattened: any[] = [];
+    segments.forEach(seg => {
+      if (typeof seg === 'string') {
+        if (seg.trim()) flattened.push(this.cleanText(seg));
+      } else {
+        flattened.push(seg);
+      }
+    });
 
     // Fallback to plain if no segments or simple text
-    if (segments.length === 0) {
+    if (flattened.length === 0 || (flattened.length === 1 && typeof flattened[0] === 'string')) {
       return [this.cleanText(text)];
     }
-    return segments.filter(s => s);  // Remove empty
+    return flattened;
   }
 
   private cleanText(text: string): string {
@@ -276,14 +283,16 @@ class ProfessionalPdfGenerator {
     let codeBuffer: string[] = [];
     let skipToC = false;
     let tocDepth = 0;
-    let currentIndent = 0;  // For nested lists
 
     const flushParagraph = () => {
       if (paragraphBuffer.length > 0) {
         const text = paragraphBuffer.join(' ').trim();
         if (text && !skipToC) {
           const inlineContent = this.parseInlineMarkdown(text);
-          content.push({ text: inlineContent.length > 1 ? inlineContent : inlineContent[0], style: 'paragraph' });
+          content.push({ 
+            text: inlineContent.length > 1 ? inlineContent : inlineContent[0], 
+            style: 'paragraph' 
+          });
         }
         paragraphBuffer = [];
       }
@@ -319,7 +328,9 @@ class ProfessionalPdfGenerator {
             dontBreakRows: true,  // Improved: Prevent row breaks
             body: [
               tableHeaders.map(h => ({ 
-                text: Array.isArray(this.parseInlineMarkdown(this.cleanText(h))) ? this.parseInlineMarkdown(this.cleanText(h)) : this.parseInlineMarkdown(this.cleanText(h))[0],
+                text: Array.isArray(this.parseInlineMarkdown(this.cleanText(h))) 
+                  ? this.parseInlineMarkdown(this.cleanText(h)) 
+                  : [this.parseInlineMarkdown(this.cleanText(h))[0]],
                 style: 'tableHeader',
                 fillColor: '#edf2f7',
                 margin: [5, 5, 5, 5],
@@ -327,7 +338,9 @@ class ProfessionalPdfGenerator {
               })),
               ...normalizedRows.map(row => 
                 row.map(cell => ({ 
-                  text: Array.isArray(this.parseInlineMarkdown(this.cleanText(cell))) ? this.parseInlineMarkdown(this.cleanText(cell)) : this.parseInlineMarkdown(this.cleanText(cell))[0],
+                  text: Array.isArray(this.parseInlineMarkdown(this.cleanText(cell))) 
+                    ? this.parseInlineMarkdown(this.cleanText(cell)) 
+                    : [this.parseInlineMarkdown(this.cleanText(cell))[0]],
                   style: 'tableCell',
                   margin: [5, 4, 5, 4],
                   alignment: 'left'
@@ -361,7 +374,7 @@ class ProfessionalPdfGenerator {
       const inlineContent = this.parseInlineMarkdown(text);
       const itemText = Array.isArray(inlineContent) ? inlineContent : [inlineContent];
       const listType = isOrdered ? 'ol' : 'ul';
-      if (content.length === 0 || !content[content.length - 1][listType]) {
+      if (content.length === 0 || !(listType in content[content.length - 1])) {
         content.push({ [listType]: [{ text: itemText, style: 'listItem', margin: [10, 3, 0, 3] }] });
       } else {
         content[content.length - 1][listType]!.push({ text: itemText, style: 'listItem', margin: [10, 3, 0, 3] });
@@ -371,8 +384,6 @@ class ProfessionalPdfGenerator {
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
       const trimmed = line.trim();
-      const leadingSpaces = (line.match(/^\s*/) || [''])[0].length;
-      const currentIndentLevel = Math.floor(leadingSpaces / 4);  // Adjust indent detection
 
       // Improved ToC skipping: More precise regex and exit condition
       if (trimmed.match(/^#{1,6}\s*(table\s+of\s+contents|contents)\s*$/i)) {
@@ -499,7 +510,7 @@ class ProfessionalPdfGenerator {
             },
             {
               width: '*',
-              text: inlineContent,
+              text: Array.isArray(inlineContent) ? inlineContent : [inlineContent],
               style: 'blockquote',
               margin: [8, 0, 0, 0]
             }
@@ -871,12 +882,13 @@ export const pdfService = {
       
       let errorMessage = 'PDF generation failed.';
       if (error.message.includes('VFS_NOT_FOUND') || error.message.includes('VFS_MISSING_FONTS') || error.message.includes('VFS_TRUNCATED_DATA')) {
-        errorMessage += '\n\nFont loading issue detected. Troubleshooting:\n' +
-          '1. Ensure pdfmake and vfs_fonts are installed: npm install pdfmake\n' +
-          '2. In webpack/vite config, handle vfs_fonts as raw (e.g., { loader: "raw-loader" } for vfs_fonts.js)\n' +
-          '3. Verify no bundler is truncating base64 data in vfs_fonts.\n' +
-          '4. Try hard refresh (Ctrl+Shift+R) or clear cache.\n' +
-          '5. As fallback, export Markdown (.md) instead.';
+        errorMessage += '\n\nFont loading issue detected (common on Vercel). Quick fixes:\n' +
+          '1. Add to vite.config.js (if Vite): \n   export default { optimizeDeps: { exclude: ["pdfmake/build/vfs_fonts"] } }\n' +
+          '2. For Next.js: Use "use client" directive and ensure client-side rendering.\n' +
+          '3. In webpack.config.js: { module: { rules: [{ test: /vfs_fonts\.js$/, type: "asset/source" }] } }\n' +
+          '4. Hard refresh (Ctrl+Shift+R) or clear cache.\n' +
+          '5. Fallback: Export Markdown (.md) – it has full content.\n\n' +
+          'If stuck, share your bundler config (vite.config.js or next.config.js).';
       } else {
         errorMessage += '\n\nPlease try:\n' +
           '1. Hard refresh the page (Ctrl+Shift+R)\n' +
