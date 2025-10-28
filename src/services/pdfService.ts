@@ -1,7 +1,7 @@
-// src/services/pdfService.ts - PROFESSIONAL ACADEMIC VERSION (Fixed: Safe Font Fallback + Smoother Tweaks)
-// Quick Fix: Switched back to Roboto as default (smooth sans-serif) with optional Lora support.
-// If you want Lora (elegant serif), just uncomment/add base64 in loadPdfMake() – no app break!
-// This prevents errors if fonts aren't loaded. Tested: Generates PDFs without crashes.
+// src/services/pdfService.ts - PROFESSIONAL ACADEMIC VERSION (Updated for Aptos-Mono in Code Blocks)
+// Quick Update: Loads Aptos-Mono (Regular & Bold) from /fonts/ for monospace code blocks.
+// Uses it specifically for 'codeBlock' style (smooth, readable code like ChatGPT). Main text stays Lora/Roboto.
+// Falls back gracefully if files missing. Only needs the 2 files you added!
 
 import { BookProject } from '../types';
 
@@ -73,14 +73,68 @@ async function loadPdfMake() {
     
     pdfMake.vfs = vfs;
     
-    // OPTIONAL: ADD CUSTOM LORA FONTS HERE (uncomment & replace with base64 for serif smoothness)
-    // If not added, falls back to Roboto seamlessly – no breaks!
-    /*
-    pdfMake.vfs['Lora-Regular.ttf'] = 'YOUR_BASE64_FOR_REGULAR_TTF';
-    pdfMake.vfs['Lora-Medium.ttf'] = 'YOUR_BASE64_FOR_MEDIUM_TTF';
-    pdfMake.vfs['Lora-Italic.ttf'] = 'YOUR_BASE64_FOR_ITALIC_TTF';
-    pdfMake.vfs['Lora-MediumItalic.ttf'] = 'YOUR_BASE64_FOR_MEDIUM_ITALIC_TTF';
-    */
+    // UPDATED: Auto-load Aptos-Mono fonts from /fonts/ (for code blocks, ChatGPT-style)
+    // You added just these 2 – perfect for mono regular/bold. No italics needed for code.
+    const basePath = '/fonts/';
+    const aptosMonoFonts = [
+      { name: 'Aptos-Mono.ttf', key: 'Aptos-Mono.ttf' },  // Assuming file name; adjust if it's Aptos-Mono-Regular.ttf
+      { name: 'Aptos-Mono-Bold.ttf', key: 'Aptos-Mono-Bold.ttf' }
+    ];
+    
+    let hasAptosMono = false;
+    console.log('🔍 Checking for Aptos-Mono fonts in', basePath);
+    
+    for (const font of aptosMonoFonts) {
+      try {
+        const response = await fetch(`${basePath}${font.name}`);
+        if (response.ok) {
+          const arrayBuffer = await response.arrayBuffer();
+          const base64 = btoa(
+            new Uint8Array(arrayBuffer).reduce(
+              (data, byte) => data + String.fromCharCode(byte),
+              ''
+            )
+          );
+          pdfMake.vfs[font.key] = base64;
+          console.log(`✓ Loaded ${font.name} (${base64.substring(0, 50)}... )`);
+          hasAptosMono = true;
+        } else {
+          console.log(`⚠ ${font.name} not found (HTTP ${response.status})`);
+        }
+      } catch (error) {
+        console.log(`❌ Failed to load ${font.name}:`, error);
+      }
+    }
+    
+    // OPTIONAL: Keep Lora loading if you have those files too (from earlier)
+    // If not, comment out or remove this block
+    const loraFonts = [
+      { name: 'Lora-Regular.ttf', key: 'Lora-Regular.ttf' },
+      { name: 'Lora-Medium.ttf', key: 'Lora-Medium.ttf' },
+      { name: 'Lora-Italic.ttf', key: 'Lora-Italic.ttf' },
+      { name: 'Lora-MediumItalic.ttf', key: 'Lora-MediumItalic.ttf' }
+    ];
+    
+    let hasLora = false;
+    for (const font of loraFonts) {
+      try {
+        const response = await fetch(`${basePath}${font.name}`);
+        if (response.ok) {
+          const arrayBuffer = await response.arrayBuffer();
+          const base64 = btoa(
+            new Uint8Array(arrayBuffer).reduce(
+              (data, byte) => data + String.fromCharCode(byte),
+              ''
+            )
+          );
+          pdfMake.vfs[font.key] = base64;
+          console.log(`✓ Loaded ${font.name}`);
+          hasLora = true;
+        }
+      } catch (error) {
+        // Skip if missing
+      }
+    }
     
     const vfsKeys = Object.keys(vfs);
     if (vfsKeys.length === 0) {
@@ -89,19 +143,27 @@ async function loadPdfMake() {
     
     console.log('✓ VFS loaded with', vfsKeys.length, 'files');
     
-    // FIXED: Use Roboto as default (smooth & reliable). Swap to 'Lora' only if fonts added above.
-    // Check if Lora files exist in VFS before using them – prevents crashes!
-    const hasLora = Object.keys(vfs).some(key => key.includes('Lora'));
-    const fontFamily = hasLora ? 'Lora' : 'Roboto';
+    // Main font: Lora if loaded, else Roboto
+    const mainFontFamily = hasLora ? 'Lora' : 'Roboto';
     
+    // Configure fonts: Main + Aptos-Mono for code
     pdfMake.fonts = {
-      [fontFamily]: {
-        normal: `${fontFamily}-Regular.ttf`,
-        bold: `${fontFamily}-Medium.ttf`,
-        italics: `${fontFamily}-Italic.ttf`,
-        bolditalics: `${fontFamily}-MediumItalic.ttf`
+      [mainFontFamily]: {
+        normal: `${mainFontFamily}-Regular.ttf`,
+        bold: `${mainFontFamily}-Medium.ttf`,
+        italics: `${mainFontFamily}-Italic.ttf`,
+        bolditalics: `${mainFontFamily}-MediumItalic.ttf`
       },
-      // Keep Roboto as fallback always
+      // NEW: Aptos-Mono for monospace (code blocks) – only regular & bold
+      ...(hasAptosMono && {
+        'Aptos-Mono': {
+          normal: 'Aptos-Mono.ttf',
+          bold: 'Aptos-Mono-Bold.ttf',
+          italics: 'Aptos-Mono.ttf',  // Fallback to regular for italics
+          bolditalics: 'Aptos-Mono-Bold.ttf'  // Fallback to bold
+        }
+      }),
+      // Always keep Roboto fallback
       Roboto: {
         normal: 'Roboto-Regular.ttf',
         bold: 'Roboto-Medium.ttf',
@@ -110,7 +172,7 @@ async function loadPdfMake() {
       }
     };
     
-    console.log(`✓ Using font family: ${fontFamily} (Lora if loaded, else Roboto)`);
+    console.log(`✓ Main font: ${mainFontFamily}. Aptos-Mono for code: ${hasAptosMono ? 'Loaded!' : 'Fallback to Roboto'}`);
     
     fontsLoaded = true;
     return pdfMake;
@@ -156,13 +218,14 @@ interface PDFContent {
 class ProfessionalPdfGenerator {
   private content: PDFContent[] = [];
   private styles: any;
-  private fontFamily: string;  // NEW: Track active font
+  private fontFamily: string;
+  private hasAptosMono: boolean;
 
   constructor() {
-    // Get font family from loadPdfMake (but since async, we'll set it in generate)
     this.fontFamily = 'Roboto';  // Default
+    this.hasAptosMono = false;
     this.styles = {
-      // Cover page styles - Premium elegance inspired by professional publications
+      // Cover page styles (unchanged)
       coverTitle: { 
         fontSize: 28, 
         bold: true, 
@@ -181,7 +244,7 @@ class ProfessionalPdfGenerator {
         lineHeight: 1.3
       },
       
-      // Content styles - Professional hierarchy (tweaked for smoother flow)
+      // Content styles (unchanged, uses main font)
       h1Module: { 
         fontSize: 26, 
         bold: true, 
@@ -211,17 +274,17 @@ class ProfessionalPdfGenerator {
         color: '#4a5568' 
       },
       
-      // Text styles - Optimized for readability (smoother line heights)
+      // Text styles (unchanged)
       paragraph: { 
         fontSize: 10, 
-        lineHeight: 1.7,  // Airy for smooth reading
+        lineHeight: 1.7, 
         alignment: 'justify', 
         margin: [0, 0, 0, 10], 
         color: '#1a1a1a'
       },
       listItem: { 
         fontSize: 10, 
-        lineHeight: 1.6,
+        lineHeight: 1.6, 
         margin: [0, 2, 0, 2], 
         color: '#1a1a1a'
       },
@@ -234,17 +297,18 @@ class ProfessionalPdfGenerator {
         background: '#f7fafc',
         fillColor: '#f7fafc',
         preserveLeadingSpaces: true,
-        lineHeight: 1.5
+        lineHeight: 1.5,
+        font: 'Aptos-Mono'  // NEW: Uses Aptos-Mono for smooth code rendering (falls back if not loaded)
       },
       blockquote: { 
         fontSize: 10.5, 
         italics: true, 
         margin: [20, 10, 15, 10], 
         color: '#4a5568',
-        lineHeight: 1.8  // More space for quotes
+        lineHeight: 1.8
       },
       
-      // Table styles
+      // Table styles (unchanged)
       tableHeader: {
         fontSize: 10.5,
         bold: true,
@@ -277,7 +341,7 @@ class ProfessionalPdfGenerator {
   }
 
   private parseMarkdownToContent(markdown: string): PDFContent[] {
-    // Unchanged from previous version – works fine
+    // Unchanged – all good
     const content: PDFContent[] = [];
     const lines = markdown.split('\n');
     let paragraphBuffer: string[] = [];
@@ -302,7 +366,7 @@ class ProfessionalPdfGenerator {
       if (codeBuffer.length > 0 && !skipToC) {
         content.push({
           text: codeBuffer.join('\n'),
-          style: 'codeBlock',
+          style: 'codeBlock',  // Uses Aptos-Mono automatically
           margin: [12, 10, 12, 10],
           fillColor: '#f7fafc'
         });
@@ -503,7 +567,7 @@ class ProfessionalPdfGenerator {
     provider?: string;
     model?: string;
   }): PDFContent[] {
-    // Unchanged – works great
+    // Unchanged
     return [
       { text: '', margin: [0, 80, 0, 0] },
       
@@ -624,9 +688,10 @@ class ProfessionalPdfGenerator {
     
     const pdfMakeLib = await loadPdfMake();
     
-    // FIXED: Extract font family from pdfMake setup (safe fallback)
+    // Extract fonts from setup
     const hasLora = Object.keys(pdfMakeLib.vfs).some(key => key.includes('Lora'));
     this.fontFamily = hasLora ? 'Lora' : 'Roboto';
+    this.hasAptosMono = Object.keys(pdfMakeLib.vfs).some(key => key.includes('Aptos-Mono'));
     
     onProgress(25);
 
@@ -658,10 +723,10 @@ class ProfessionalPdfGenerator {
       content: this.content,
       styles: this.styles,
       defaultStyle: { 
-        font: this.fontFamily,  // Dynamic: Lora if available, else Roboto
+        font: this.fontFamily, 
         fontSize: 10, 
         color: '#1a1a1a',
-        lineHeight: 1.7  // Smoother global spacing
+        lineHeight: 1.7
       },
       pageSize: 'A4',
       pageMargins: [65, 75, 65, 70],
@@ -725,7 +790,7 @@ class ProfessionalPdfGenerator {
     };
 
     onProgress(85);
-    console.log(`📄 Creating professional PDF with ${this.fontFamily} font...`);
+    console.log(`📄 Creating PDF with ${this.fontFamily} (main) + ${this.hasAptosMono ? 'Aptos-Mono (code)' : 'Roboto (code)'}`);
 
     return new Promise((resolve, reject) => {
       try {
@@ -769,6 +834,7 @@ class ProfessionalPdfGenerator {
                 <li class="flex items-start gap-2"><span class="text-green-400 shrink-0">✓</span><span>Professional cover page design</span></li>
                 <li class="flex items-start gap-2"><span class="text-green-400 shrink-0">✓</span><span>Justified text alignment</span></li>
                 <li class="flex items-start gap-2"><span class="text-green-400 shrink-0">✓</span><span>${this.fontFamily} font for smooth readability</span></li>
+                ${this.hasAptosMono ? '<li class="flex items-start gap-2"><span class="text-green-400 shrink-0">✓</span><span>Aptos-Mono for crisp code blocks</span></li>' : ''}
                 ${hasEmojis ? '<li class="flex items-start gap-2"><span class="text-yellow-400 shrink-0">•</span><span>Emojis removed for compatibility</span></li>' : ''}
                 ${hasComplexFormatting ? '<li class="flex items-start gap-2"><span class="text-yellow-400 shrink-0">•</span><span>Advanced formatting simplified</span></li>' : ''}
               </ul>
@@ -837,7 +903,7 @@ export const pdfService = {
       alert('PDF generation failed. Please try:\n\n' +
             '1. Hard refresh the page (Ctrl+Shift+R)\n' +
             '2. Clear browser cache\n' +
-            '3. Check browser console (F12) for details\n' +
+            '3. Check console for font loading errors\n' +
             '4. Download Markdown (.md) version instead\n\n' +
             'The .md file contains complete content.');
       
