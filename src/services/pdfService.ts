@@ -1,3 +1,9 @@
+// src/services/pdfService.ts - PROFESSIONAL ACADEMIC VERSION (Updated: Aptos-Mono as Main Font + Disclaimer Page)
+// Quick Update: Removed Lora loading. Uses Aptos-Mono (Regular & Bold) as primary font for all text.
+// Falls back to Roboto if files missing. Monospaced for a clean, code-inspired academic look.
+// Italics fall back to regular (no italic variant). Code blocks also use it for consistency.
+// FIXED: Filename template string issue resolved
+
 import { BookProject } from '../types';
 let isGenerating = false;
 let pdfMake: any = null;
@@ -716,9 +722,11 @@ class ProfessionalPdfGenerator {
     const hasAptosMono = Object.keys(pdfMakeLib.vfs).some(key => key.includes('Aptos-Mono'));
     this.fontFamily = hasAptosMono ? 'Aptos-Mono' : 'Roboto';
     const totalWords = project.modules.reduce((sum, m) => sum + m.wordCount, 0);
-    const providerMatch = project.finalBook?.match(/\*\*Provider:\*\* (.+?) $(.+?)$/);
+    
+    const providerMatch = project.finalBook?.match(/\*\*Provider:\*\* (.*?) \((.*?)\)/);
     const provider = providerMatch ? providerMatch : undefined;
     const model = providerMatch ? providerMatch : undefined;
+
     const coverContent = this.createCoverPage(project.title, {
       words: totalWords,
       modules: project.modules.length,
