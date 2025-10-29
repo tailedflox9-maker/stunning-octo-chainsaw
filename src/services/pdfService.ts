@@ -1,10 +1,4 @@
-// src/services/pdfService.ts - PROFESSIONAL ACADEMIC VERSION (Updated: Aptos-Mono as Main Font + Disclaimer Page)
-// Quick Update: Removed Lora loading. Uses Aptos-Mono (Regular & Bold) as primary font for all text.
-// Falls back to Roboto if files missing. Monospaced for a clean, code-inspired academic look.
-// Italics fall back to regular (no italic variant). Code blocks also use it for consistency.
-// FIXED: Filename template string issue resolved
-// STEALTH MODE: All console logs removed for privacy
-
+// src/services/pdfService.ts - PROFESSIONAL ACADEMIC VERSION WITH ENHANCED JUSTIFICATION
 import { BookProject } from '../types';
 let isGenerating = false;
 let pdfMake: any = null;
@@ -223,40 +217,46 @@ class ProfessionalPdfGenerator {
         margin: [0, 0, 0, 18],
         color: '#1a202c',
         lineHeight: 1.3,
-        characterSpacing: 0.8
+        characterSpacing: 0.8,
+        alignment: 'left'
       },
       h2: {
         fontSize: 18,
         bold: true,
         margin: [0, 22, 0, 11],
         color: '#2d3748',
-        lineHeight: 1.3
+        lineHeight: 1.3,
+        alignment: 'left'
       },
       h3: {
         fontSize: 15,
         bold: true,
         margin: [0, 18, 0, 9],
         color: '#2d3748',
-        lineHeight: 1.3
+        lineHeight: 1.3,
+        alignment: 'left'
       },
       h4: {
         fontSize: 13,
         bold: true,
         margin: [0, 15, 0, 8],
-        color: '#4a5568'
+        color: '#4a5568',
+        alignment: 'left'
       },
       paragraph: {
         fontSize: 10,
-        lineHeight: 1.5,
+        lineHeight: 1.6,
         alignment: 'justify',
-        margin: [0, 0, 0, 10],
-        color: '#1a1a1a'
+        margin: [0, 0, 0, 12],
+        color: '#1a1a1a',
+        characterSpacing: 0
       },
       listItem: {
         fontSize: 10,
-        lineHeight: 1.4,
-        margin: [0, 2, 0, 2],
-        color: '#1a1a1a'
+        lineHeight: 1.5,
+        margin: [0, 3, 0, 3],
+        color: '#1a1a1a',
+        alignment: 'left'
       },
       codeBlock: {
         fontSize: 9.5,
@@ -265,27 +265,30 @@ class ProfessionalPdfGenerator {
         background: '#f7fafc',
         fillColor: '#f7fafc',
         preserveLeadingSpaces: true,
-        lineHeight: 1.4
+        lineHeight: 1.4,
+        alignment: 'left'
       },
       blockquote: {
         fontSize: 10.5,
         italics: true,
         margin: [20, 10, 15, 10],
         color: '#4a5568',
-        lineHeight: 1.6
+        lineHeight: 1.6,
+        alignment: 'justify'
       },
       tableHeader: {
         fontSize: 10.5,
         bold: true,
         color: '#000000',
-        fillColor: '#d1d5db'
+        fillColor: '#d1d5db',
+        alignment: 'left'
       },
       tableCell: {
         fontSize: 10,
         color: '#1f2937',
-        lineHeight: 1.4
+        lineHeight: 1.4,
+        alignment: 'left'
       },
-      // Disclaimer page styles
       disclaimerTitle: {
         fontSize: 24,
         bold: true,
@@ -295,15 +298,16 @@ class ProfessionalPdfGenerator {
       },
       disclaimerText: {
         fontSize: 10,
-        lineHeight: 1.6,
+        lineHeight: 1.65,
         alignment: 'justify',
         color: '#2d3748',
-        margin: [0, 0, 0, 12]
+        margin: [0, 0, 0, 12],
+        characterSpacing: 0
       },
       disclaimerNote: {
         fontSize: 9,
         lineHeight: 1.5,
-        alignment: 'left',
+        alignment: 'justify',
         color: '#4a5568',
         margin: [0, 8, 0, 8]
       }
@@ -331,42 +335,37 @@ class ProfessionalPdfGenerator {
     const parts: any[] = [];
     let lastIndex = 0;
     
-    // Match **bold**, *italic*, `code`, ~~strikethrough~~
     const regex = /(\*\*\*(.+?)\*\*\*|\*\*(.+?)\*\*|\*(.+?)\*|__(.+?)__|_(.+?)_|`(.+?)`|~~(.+?)~~)/g;
     let match;
     
     while ((match = regex.exec(text)) !== null) {
-      // Add text before the match
       if (match.index > lastIndex) {
         parts.push({ text: text.substring(lastIndex, match.index) });
       }
       
-      // Add formatted text
-      if (match[2]) { // ***bold italic***
+      if (match[2]) {
         parts.push({ text: match[2], bold: true, italics: true });
-      } else if (match[3]) { // **bold**
+      } else if (match[3]) {
         parts.push({ text: match[3], bold: true });
-      } else if (match[4]) { // *italic*
+      } else if (match[4]) {
         parts.push({ text: match[4], italics: true });
-      } else if (match[5]) { // __bold__
+      } else if (match[5]) {
         parts.push({ text: match[5], bold: true });
-      } else if (match[6]) { // _italic_
+      } else if (match[6]) {
         parts.push({ text: match[6], italics: true });
-      } else if (match[7]) { // `code`
+      } else if (match[7]) {
         parts.push({ text: match[7], font: this.fontFamily, background: '#f3f4f6' });
-      } else if (match[8]) { // ~~strikethrough~~
+      } else if (match[8]) {
         parts.push({ text: match[8], decoration: 'lineThrough' });
       }
       
       lastIndex = regex.lastIndex;
     }
     
-    // Add remaining text
     if (lastIndex < text.length) {
       parts.push({ text: text.substring(lastIndex) });
     }
     
-    // Return single text if no formatting, otherwise return array
     return parts.length === 0 ? text : (parts.length === 1 && typeof parts[0] === 'string') ? parts[0] : parts;
   }
 
@@ -388,7 +387,11 @@ class ProfessionalPdfGenerator {
         const text = paragraphBuffer.join(' ').trim();
         if (text && !skipToC) {
           const formattedText = this.parseInlineMarkdown(text);
-          content.push({ text: formattedText, style: 'paragraph' });
+          content.push({ 
+            text: formattedText, 
+            style: 'paragraph',
+            alignment: 'justify'
+          });
         }
         paragraphBuffer = [];
       }
@@ -400,7 +403,8 @@ class ProfessionalPdfGenerator {
           text: codeBuffer.join('\n'),
           style: 'codeBlock',
           margin: [12, 10, 12, 10],
-          fillColor: '#f7fafc'
+          fillColor: '#f7fafc',
+          alignment: 'left'
         });
         codeBuffer = [];
       }
@@ -453,6 +457,7 @@ class ProfessionalPdfGenerator {
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
       const trimmed = line.trim();
+      
       if (trimmed.match(/^#{1,2}\s+(table of contents|contents)/i)) {
         skipToC = true;
         tocDepth = (trimmed.match(/^#+/) || [''])[0].length;
@@ -542,25 +547,25 @@ class ProfessionalPdfGenerator {
             });
           }
           isFirstModule = false;
-          content.push({ text: formattedText, style: 'h1Module' });
+          content.push({ text: formattedText, style: 'h1Module', alignment: 'left' });
         } else {
-          content.push({ text: formattedText, style: 'h1Module' });
+          content.push({ text: formattedText, style: 'h1Module', alignment: 'left' });
         }
       } else if (trimmed.startsWith('## ')) {
         flushParagraph();
         let text = trimmed.substring(3);
         text = this.capitalizeFirstLetter(text);
-        content.push({ text: this.parseInlineMarkdown(text), style: 'h2' });
+        content.push({ text: this.parseInlineMarkdown(text), style: 'h2', alignment: 'left' });
       } else if (trimmed.startsWith('### ')) {
         flushParagraph();
         let text = trimmed.substring(4);
         text = this.capitalizeFirstLetter(text);
-        content.push({ text: this.parseInlineMarkdown(text), style: 'h3' });
+        content.push({ text: this.parseInlineMarkdown(text), style: 'h3', alignment: 'left' });
       } else if (trimmed.startsWith('#### ')) {
         flushParagraph();
         let text = trimmed.substring(5);
         text = this.capitalizeFirstLetter(text);
-        content.push({ text: this.parseInlineMarkdown(text), style: 'h4' });
+        content.push({ text: this.parseInlineMarkdown(text), style: 'h4', alignment: 'left' });
       } else if (trimmed.match(/^[-*+]\s+/)) {
         flushParagraph();
         const listText = trimmed.replace(/^[-*+]\s+/, '');
@@ -568,7 +573,8 @@ class ProfessionalPdfGenerator {
         content.push({
           text: Array.isArray(formattedText) ? [{ text: '• ' }, ...formattedText] : [{ text: '• ' }, formattedText],
           style: 'listItem',
-          margin: [10, 3, 0, 3]
+          margin: [10, 3, 0, 3],
+          alignment: 'left'
         });
       } else if (trimmed.match(/^\d+\.\s+/)) {
         flushParagraph();
@@ -578,7 +584,8 @@ class ProfessionalPdfGenerator {
         content.push({
           text: Array.isArray(formattedText) ? [{ text: num + '. ' }, ...formattedText] : [{ text: num + '. ' }, formattedText],
           style: 'listItem',
-          margin: [10, 3, 0, 3]
+          margin: [10, 3, 0, 3],
+          alignment: 'left'
         });
       } else if (trimmed.startsWith('>')) {
         flushParagraph();
@@ -597,7 +604,8 @@ class ProfessionalPdfGenerator {
               width: '*',
               text: this.parseInlineMarkdown(trimmed.substring(1).trim()),
               style: 'blockquote',
-              margin: [8, 0, 0, 0]
+              margin: [8, 0, 0, 0],
+              alignment: 'justify'
             }
           ],
           margin: [15, 10, 15, 10]
@@ -636,7 +644,8 @@ class ProfessionalPdfGenerator {
         fontSize: 12,
         bold: true,
         color: '#2d3748',
-        margin: [0, 0, 0, 12]
+        margin: [0, 0, 0, 12],
+        alignment: 'left'
       },
       {
         text: 'This document has been entirely generated by artificial intelligence technology through the Pustakam Injin platform. While significant effort has been made to ensure accuracy and coherence, readers should be aware of the following important considerations:',
@@ -658,7 +667,8 @@ class ProfessionalPdfGenerator {
         fontSize: 12,
         bold: true,
         color: '#2d3748',
-        margin: [0, 10, 0, 12]
+        margin: [0, 10, 0, 12],
+        alignment: 'left'
       },
       {
         text: 'This document is provided "as-is" for informational and educational purposes. Users are encouraged to fact-check, cross-reference, and critically evaluate all content. The Pustakam Injin serves as a knowledge exploration tool and starting point for research, not as a definitive source of truth.',
@@ -669,7 +679,8 @@ class ProfessionalPdfGenerator {
         fontSize: 12,
         bold: true,
         color: '#2d3748',
-        margin: [0, 10, 0, 12]
+        margin: [0, 10, 0, 12],
+        alignment: 'left'
       },
       {
         text: 'While the Pustakam Injin employs advanced AI models and formatting techniques to produce professional-quality documents, no warranty is made regarding completeness, reliability, or accuracy. Users assume full responsibility for how they use, interpret, and apply this content.',
@@ -688,7 +699,8 @@ class ProfessionalPdfGenerator {
             minute: '2-digit'
           }), fontSize: 9, color: '#2d3748' }
         ],
-        margin: [0, 30, 0, 10]
+        margin: [0, 30, 0, 10],
+        alignment: 'left'
       },
       {
         text: 'This document is generated using advanced AI models. Always cross-verify with trusted sources.',
@@ -726,19 +738,21 @@ class ProfessionalPdfGenerator {
         text: 'Generated by Pustakam Injin',
         fontSize: 11,
         color: '#666666',
-        margin: [0, 0, 0, 40]
+        margin: [0, 0, 0, 40],
+        alignment: 'left'
       },
       {
         text: 'Abstract',
         fontSize: 11,
         bold: true,
         color: '#1a1a1a',
-        margin: [0, 0, 0, 8]
+        margin: [0, 0, 0, 8],
+        alignment: 'left'
       },
       {
         text: `This comprehensive ${metadata.modules}-chapter document contains ${metadata.words.toLocaleString()} words of AI-generated content. Each section has been carefully structured to provide in-depth coverage of the topic with clear explanations and practical insights.`,
         fontSize: 10,
-        lineHeight: 1.6,
+lineHeight: 1.6,
         alignment: 'justify',
         color: '#1a1a1a',
         margin: [0, 0, 0, 30]
@@ -750,7 +764,8 @@ class ProfessionalPdfGenerator {
             fontSize: 11,
             bold: true,
             color: '#1a1a1a',
-            margin: [0, 0, 0, 8]
+            margin: [0, 0, 0, 8],
+            alignment: 'left'
           },
           {
             columns: [
@@ -800,13 +815,15 @@ class ProfessionalPdfGenerator {
             fontSize: 10,
             bold: true,
             color: '#1a1a1a',
-            margin: [0, 0, 0, 4]
+            margin: [0, 0, 0, 4],
+            alignment: 'left'
           },
           {
             text: 'AI-Powered Knowledge Creation',
             fontSize: 9,
             color: '#666666',
-            margin: [0, 0, 0, 8]
+            margin: [0, 0, 0, 8],
+            alignment: 'left'
           },
           {
             text: 'Tanmay Kalbande',
@@ -814,7 +831,8 @@ class ProfessionalPdfGenerator {
             color: '#1a1a1a',
             link: 'https://www.linkedin.com/in/tanmay-kalbande/',
             decoration: 'underline',
-            decorationColor: '#1a1a1a'
+            decorationColor: '#1a1a1a',
+            alignment: 'left'
           }
         ]
       },
@@ -827,8 +845,7 @@ class ProfessionalPdfGenerator {
       .replace(/[^a-z0-9\s-]/gi, '')
       .trim()
       .split(/\s+/)
-      .map((word, index) => {
-        // Capitalize first letter of each word, lowercase rest
+      .map((word) => {
         return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
       })
       .join('_')
@@ -848,10 +865,12 @@ class ProfessionalPdfGenerator {
     const pdfMakeLib = await loadPdfMake();
     const hasAptosMono = Object.keys(pdfMakeLib.vfs).some(key => key.includes('Aptos-Mono'));
     this.fontFamily = hasAptosMono ? 'Aptos-Mono' : 'Roboto';
+    
     const totalWords = project.modules.reduce((sum, m) => sum + m.wordCount, 0);
-    const providerMatch = project.finalBook?.match(/\*\*Provider:\*\* (.+?) $(.+?)$/);
+    const providerMatch = project.finalBook?.match(/\*\*Provider:\*\* (.+?) \((.+?)\)/);
     const provider = providerMatch ? providerMatch[1] : undefined;
     const model = providerMatch ? providerMatch[2] : undefined;
+    
     const coverContent = this.createCoverPage(project.title, {
       words: totalWords,
       modules: project.modules.length,
@@ -863,12 +882,15 @@ class ProfessionalPdfGenerator {
       provider,
       model
     });
+    
     onProgress(40);
     const mainContent = this.parseMarkdownToContent(project.finalBook || '');
     onProgress(60);
     const disclaimerContent = this.createDisclaimerPage();
     onProgress(75);
+    
     this.content = [...coverContent, ...mainContent, ...disclaimerContent];
+    
     const docDefinition: any = {
       content: this.content,
       styles: this.styles,
@@ -876,7 +898,8 @@ class ProfessionalPdfGenerator {
         font: this.fontFamily,
         fontSize: 10,
         color: '#1a1a1a',
-        lineHeight: 1.5
+        lineHeight: 1.6,
+        alignment: 'justify'
       },
       pageSize: 'A4',
       pageMargins: [65, 75, 65, 70],
@@ -902,7 +925,7 @@ class ProfessionalPdfGenerator {
           margin: [65, 22, 65, 0]
         };
       },
-      footer: (currentPage: number, pageCount: number) => {
+      footer: (currentPage: number) => {
         if (currentPage <= 1) return {};
         return {
           columns: [
@@ -933,16 +956,20 @@ class ProfessionalPdfGenerator {
         keywords: 'AI, Knowledge, Education, Pustakam'
       }
     };
+    
     onProgress(85);
+    
     return new Promise((resolve, reject) => {
       try {
         const pdfDocGenerator = pdfMakeLib.createPdf(docDefinition);
         const filename = this.generateSafeFilename(project.title);
+        
         const hasEmojis = /[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu.test(
           project.finalBook || ''
         );
         const hasComplexFormatting = (project.finalBook || '').includes('```') ||
                                      (project.finalBook || '').includes('~~');
+        
         const popup = document.createElement('div');
         popup.className = 'fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in';
         popup.innerHTML = `
@@ -961,13 +988,13 @@ class ProfessionalPdfGenerator {
             </div>
             <div class="space-y-3 mb-6">
               <p class="text-sm text-gray-300 leading-relaxed">
-                Your document has been formatted with professional typography and layout inspired by academic publications.
+                Your document has been formatted with professional typography and fully justified text alignment.
               </p>
               <ul class="space-y-2 text-sm text-gray-400">
-                <li class="flex items-start gap-2"><span class="text-green-400 shrink-0">✓</span><span>Clean, readable 10pt body text</span></li>
+                <li class="flex items-start gap-2"><span class="text-green-400 shrink-0">✓</span><span>Justified paragraph alignment</span></li>
                 <li class="flex items-start gap-2"><span class="text-green-400 shrink-0">✓</span><span>Professional cover page design</span></li>
-                <li class="flex items-start gap-2"><span class="text-green-400 shrink-0">✓</span><span>Justified text alignment</span></li>
-                <li class="flex items-start gap-2"><span class="text-green-400 shrink-0">✓</span><span>${this.fontFamily} font for consistent monospaced style</span></li>
+                <li class="flex items-start gap-2"><span class="text-green-400 shrink-0">✓</span><span>Enhanced line spacing (1.6)</span></li>
+                <li class="flex items-start gap-2"><span class="text-green-400 shrink-0">✓</span><span>${this.fontFamily} font for consistent style</span></li>
                 ${hasEmojis ? '<li class="flex items-start gap-2"><span class="text-yellow-400 shrink-0">•</span><span>Emojis removed for compatibility</span></li>' : ''}
                 ${hasComplexFormatting ? '<li class="flex items-start gap-2"><span class="text-yellow-400 shrink-0">•</span><span>Advanced formatting simplified</span></li>' : ''}
               </ul>
@@ -983,13 +1010,16 @@ class ProfessionalPdfGenerator {
           </div>
         `;
         document.body.appendChild(popup);
+        
         const cancelBtn = popup.querySelector('#cancel-pdf');
         const downloadBtn = popup.querySelector('#download-pdf');
+        
         cancelBtn?.addEventListener('click', () => {
           document.body.removeChild(popup);
           onProgress(0);
           reject(new Error('Download cancelled by user'));
         });
+        
         downloadBtn?.addEventListener('click', () => {
           document.body.removeChild(popup);
           pdfDocGenerator.download(filename, () => {
