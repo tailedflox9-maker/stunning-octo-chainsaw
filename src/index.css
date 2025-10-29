@@ -1,38 +1,7 @@
 /* src/index.css (Updated with improved reading themes) */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-/* ==========================================================================
-   Custom Font Definitions
-   ========================================================================== */
-@layer base {
-  @font-face {
-    font-family: 'Aptos-Mono';
-    src: url('/fonts/Aptos-Mono.ttf') format('truetype');
-    font-weight: normal;
-    font-style: normal;
-  }
-  @font-face {
-    font-family: 'Aptos-Mono';
-    src: url('/fonts/Aptos-Mono-Bold.ttf') format('truetype');
-    font-weight: bold;
-    font-style: normal;
-  }
-  @font-face {
-    font-family: 'Aptos-Mono';
-    src: url('/fonts/Aptos-Mono-Italic.ttf') format('truetype');
-    font-weight: normal;
-    font-style: italic;
-  }
-  @font-face {
-    font-family: 'Aptos-Mono';
-    src: url('/fonts/Aptos-Mono-Bold-Italic.ttf') format('truetype');
-    font-weight: bold;
-    font-style: italic;
-  }
-}
 
 /* ==========================================================================
    Base Layer & Theming
@@ -72,7 +41,7 @@
 
   body {
     @apply bg-[var(--color-bg)] text-[var(--color-text-primary)] antialiased;
-    font-family: 'Aptos-Mono', 'Inter', sans-serif;
+    font-family: 'Work Sans', sans-serif;
     margin: 0;
     padding: 0;
   }
