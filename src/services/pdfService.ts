@@ -700,8 +700,7 @@ class ProfessionalPdfGenerator {
       .replace(/[^a-z0-9\s-]/gi, '')
       .trim()
       .split(/\s+/)
-      .map((word, index) => {
-        // Capitalize first letter of each word, lowercase rest
+      .map((word) => {
         return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
       })
       .join('_')
