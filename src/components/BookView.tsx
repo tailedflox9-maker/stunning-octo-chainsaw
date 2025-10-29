@@ -168,7 +168,7 @@ const THEMES = {
 const FONT_FAMILIES = {
   serif: 'ui-serif, Georgia, "Times New Roman", serif',
   sans: 'ui-sans-serif, system-ui, -apple-system, sans-serif',
-  mono: 'Aptos-Mono, "SF Mono", "Monaco", "Cascadia Code", monospace',
+  mono: 'ui-monospace, "SF Mono", "Monaco", "Cascadia Code", monospace',
 };
 
 const MAX_WIDTHS = {
