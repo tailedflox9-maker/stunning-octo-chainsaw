@@ -104,11 +104,11 @@ async function loadPdfMake() {
 
     // Configure fonts: Primary + fallback
     pdfMake.fonts = {
-      [mainFontFamily]: {
-        normal: `${mainFontFamily}.ttf`,
-        bold: `${mainFontFamily}-Bold.ttf`,
-        italics: `${mainFontFamily}.ttf`,
-        bolditalics: `${mainFontFamily}-Bold.ttf`
+      'Aptos-Mono': {
+        normal: 'Aptos-Mono.ttf',
+        bold: 'Aptos-Mono-Bold.ttf',
+        italics: 'Aptos-Mono.ttf',
+        bolditalics: 'Aptos-Mono-Bold.ttf'
       },
       Roboto: {
         normal: 'Roboto-Regular.ttf',
@@ -117,7 +117,7 @@ async function loadPdfMake() {
         bolditalics: 'Roboto-MediumItalic.ttf'
       }
     };
-    console.log(`✓ Using main font: ${mainFontFamily} (monospaced pro style)`);
+    console.log(`✓ Using main font: ${mainFontFamily}`);
     fontsLoaded = true;
     return pdfMake;
   } catch (error) {
@@ -759,7 +759,6 @@ class ProfessionalPdfGenerator {
     const pdfMakeLib = await loadPdfMake();
     const hasAptosMono = Object.keys(pdfMakeLib.vfs).some(key => key.includes('Aptos-Mono'));
     this.fontFamily = hasAptosMono ? 'Aptos-Mono' : 'Roboto';
-    onProgress(25);
     const totalWords = project.modules.reduce((sum, m) => sum + m.wordCount, 0);
     const providerMatch = project.finalBook?.match(/\*\*Provider:\*\* (.+?) $(.+?)$/);
     const provider = providerMatch ? providerMatch[1] : undefined;
