@@ -67,7 +67,8 @@ async function loadPdfMake() {
     const basePath = '/fonts/';
     const aptosMonoFonts = [
       { name: 'Aptos-Mono.ttf', key: 'Aptos-Mono.ttf' },
-      { name: 'Aptos-Mono-Bold.ttf', key: 'Aptos-Mono-Bold.ttf' }
+      { name: 'Aptos-Mono-Bold.ttf', key: 'Aptos-Mono-Bold.ttf' },
+      { name: 'Aptos-Mono-Bold-Italic.ttf', key: 'Aptos-Mono-Bold-Italic.ttf' }
     ];
     let hasAptosMono = false;
     for (const font of aptosMonoFonts) {
@@ -99,12 +100,13 @@ async function loadPdfMake() {
 
     // Configure fonts based on what's actually available
     if (aptosMonoInVfs) {
+      const hasBoldItalic = vfs['Aptos-Mono-Bold-Italic.ttf'];
       pdfMake.fonts = {
         'Aptos-Mono': {
           normal: 'Aptos-Mono.ttf',
           bold: 'Aptos-Mono-Bold.ttf',
-          italics: 'Aptos-Mono.ttf',
-          bolditalics: 'Aptos-Mono-Bold.ttf'
+          italics: hasBoldItalic ? 'Aptos-Mono-Bold-Italic.ttf' : 'Aptos-Mono.ttf', // Fallback to Bold-Italic or Regular
+          bolditalics: hasBoldItalic ? 'Aptos-Mono-Bold-Italic.ttf' : 'Aptos-Mono-Bold.ttf'
         }
       };
     } else {
