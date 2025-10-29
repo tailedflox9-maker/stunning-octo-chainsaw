@@ -414,62 +414,66 @@ class ProfessionalPdfGenerator {
       if (codeBuffer.length === 0 || skipToC) return;
 
       const fullCode = codeBuffer.join('\n');
-      const fontSize = 8.5; // Slightly smaller for better fit
-      const lineHeight = 1.5;
+      const fontSize = 8; // Smaller font for better fit
+      const lineHeight = 1.4;
+      const paddingTopBottom = 12;
+      const paddingLeftRight = 12;
       
       // Split into chunks if too long
-      const chunks = this.splitCodeBlock(fullCode, 45);
+      const chunks = this.splitCodeBlock(fullCode, 40); // Reduced from 45
       
       chunks.forEach((chunk, chunkIndex) => {
-        const blockHeight = this.calculateCodeBlockHeight(chunk, fontSize, lineHeight);
-        const contentWidth = 515; // Full content width with margins
+        const lines = chunk.split('\n');
+        const lineCount = lines.length;
+        
+        // Calculate actual height needed
+        const textHeight = lineCount * fontSize * lineHeight;
+        const blockHeight = textHeight + (paddingTopBottom * 2);
+        const contentWidth = 515; // Full content width
         
         // Add page break before code block if it's too close to bottom
-        // (except for first chunk of first code block)
         if (chunkIndex > 0) {
           content.push({ text: '', pageBreak: 'before' });
         }
         
+        // Use table layout for better containment
         content.push({
-          stack: [
-            // Border rectangle (square corners, no rounded edges)
-            {
-              canvas: [{
-                type: 'rect',
-                x: 0,
-                y: 0,
-                w: contentWidth,
-                h: blockHeight,
-                r: 0, // ✅ FIXED: Square corners instead of rounded
-                lineWidth: 1.5,
-                lineColor: '#94a3b8', // Darker border for better visibility
-                color: '#f8fafc'
-              }],
-              margin: [0, 12, 0, 0]
-            },
-            // Code text
-            {
-              text: chunk,
-              font: this.fontFamily,
-              fontSize: fontSize,
-              color: '#0f172a',
-              preserveLeadingSpaces: true,
-              lineHeight: lineHeight,
-              margin: [10, -(blockHeight - 10), 10, 0], // ✅ FIXED: Better alignment
-              characterSpacing: -0.3,
-              alignment: 'left'
-            }
-          ],
-          margin: [0, 0, 0, 12],
-          // Ensure code block doesn't break across pages if possible
-          unbreakable: blockHeight < 600 // Only prevent break if reasonably sized
+          table: {
+            widths: [contentWidth],
+            body: [
+              [{
+                text: chunk,
+                font: this.fontFamily,
+                fontSize: fontSize,
+                color: '#0f172a',
+                preserveLeadingSpaces: true,
+                lineHeight: lineHeight,
+                characterSpacing: -0.2,
+                alignment: 'left',
+                fillColor: '#f8fafc',
+                margin: [paddingLeftRight, paddingTopBottom, paddingLeftRight, paddingTopBottom]
+              }]
+            ]
+          },
+          layout: {
+            hLineWidth: () => 1.5,
+            vLineWidth: () => 1.5,
+            hLineColor: () => '#94a3b8',
+            vLineColor: () => '#94a3b8',
+            paddingLeft: () => 0,
+            paddingRight: () => 0,
+            paddingTop: () => 0,
+            paddingBottom: () => 0
+          },
+          margin: [0, 12, 0, 12],
+          unbreakable: blockHeight < 500 // Prevent page breaks if possible
         });
         
         // Add continuation indicator if split
         if (chunkIndex < chunks.length - 1) {
           content.push({
-            text: '... (continued)',
-            fontSize: 8,
+            text: '... (continued on next page)',
+            fontSize: 7,
             color: '#64748b',
             italics: true,
             alignment: 'right',
