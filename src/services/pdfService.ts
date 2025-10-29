@@ -1,4 +1,4 @@
-// src/services/pdfService.ts - ENHANCED VERSION WITH BEAUTIFUL CODE BLOCKS
+// src/services/pdfService.ts - FIXED VERSION WITH DYNAMIC CODE BLOCKS
 import { BookProject } from '../types';
 let isGenerating = false;
 let pdfMake: any = null;
@@ -355,6 +355,32 @@ class ProfessionalPdfGenerator {
     return parts.length === 0 ? text : (parts.length === 1 && typeof parts[0] === 'string') ? parts[0] : parts;
   }
 
+  // ✅ NEW: Calculate dynamic height for code blocks
+  private calculateCodeBlockHeight(code: string, fontSize: number = 8.5, lineHeight: number = 1.5): number {
+    const lines = code.split('\n');
+    const lineCount = lines.length;
+    
+    // Calculate text height: lineCount * fontSize * lineHeight
+    const textHeight = lineCount * fontSize * lineHeight;
+    
+    // Add padding (top + bottom)
+    const padding = 20; // 10px top + 10px bottom
+    
+    return textHeight + padding;
+  }
+
+  // ✅ NEW: Split long code blocks across pages if needed
+  private splitCodeBlock(code: string, maxLines: number = 45): string[] {
+    const lines = code.split('\n');
+    const chunks: string[] = [];
+    
+    for (let i = 0; i < lines.length; i += maxLines) {
+      chunks.push(lines.slice(i, i + maxLines).join('\n'));
+    }
+    
+    return chunks;
+  }
+
   private parseMarkdownToContent(markdown: string): PDFContent[] {
     const content: PDFContent[] = [];
     const lines = markdown.split('\n');
@@ -383,43 +409,76 @@ class ProfessionalPdfGenerator {
       }
     };
 
+    // ✅ UPDATED: Dynamic code block rendering with proper sizing
     const flushCodeBlock = () => {
-      if (codeBuffer.length > 0 && !skipToC) {
-        const lineCount = codeBuffer.length;
-        const blockHeight = (lineCount * 13.5) + 24; // Line height + padding
+      if (codeBuffer.length === 0 || skipToC) return;
+
+      const fullCode = codeBuffer.join('\n');
+      const fontSize = 8.5; // Slightly smaller for better fit
+      const lineHeight = 1.5;
+      
+      // Split into chunks if too long
+      const chunks = this.splitCodeBlock(fullCode, 45);
+      
+      chunks.forEach((chunk, chunkIndex) => {
+        const blockHeight = this.calculateCodeBlockHeight(chunk, fontSize, lineHeight);
+        const contentWidth = 515; // Full content width with margins
         
-        // Styled container with border
+        // Add page break before code block if it's too close to bottom
+        // (except for first chunk of first code block)
+        if (chunkIndex > 0) {
+          content.push({ text: '', pageBreak: 'before' });
+        }
+        
         content.push({
           stack: [
+            // Border rectangle (square corners, no rounded edges)
             {
               canvas: [{
                 type: 'rect',
                 x: 0,
                 y: 0,
-                w: 515, // Full content width
+                w: contentWidth,
                 h: blockHeight,
-                r: 6, // Rounded corners
+                r: 0, // ✅ FIXED: Square corners instead of rounded
                 lineWidth: 1.5,
-                lineColor: '#cbd5e1',
-                color: '#f8fafc' // Slightly lighter background
+                lineColor: '#94a3b8', // Darker border for better visibility
+                color: '#f8fafc'
               }],
               margin: [0, 12, 0, 0]
             },
+            // Code text
             {
-              text: codeBuffer.join('\n'),
+              text: chunk,
               font: this.fontFamily,
-              fontSize: 9,
-              color: '#0f172a', // Darker for better contrast
+              fontSize: fontSize,
+              color: '#0f172a',
               preserveLeadingSpaces: true,
-              lineHeight: 1.5,
-              margin: [12, -(blockHeight - 12), 12, 0],
-              characterSpacing: -0.3
+              lineHeight: lineHeight,
+              margin: [10, -(blockHeight - 10), 10, 0], // ✅ FIXED: Better alignment
+              characterSpacing: -0.3,
+              alignment: 'left'
             }
           ],
-          margin: [0, 0, 0, 12]
+          margin: [0, 0, 0, 12],
+          // Ensure code block doesn't break across pages if possible
+          unbreakable: blockHeight < 600 // Only prevent break if reasonably sized
         });
-        codeBuffer = [];
-      }
+        
+        // Add continuation indicator if split
+        if (chunkIndex < chunks.length - 1) {
+          content.push({
+            text: '... (continued)',
+            fontSize: 8,
+            color: '#64748b',
+            italics: true,
+            alignment: 'right',
+            margin: [0, -8, 0, 8]
+          });
+        }
+      });
+      
+      codeBuffer = [];
     };
 
     const flushTable = () => {
@@ -914,7 +973,7 @@ class ProfessionalPdfGenerator {
         alignment: 'justify'
       },
       pageSize: 'A4',
-      pageMargins: [50, 75, 50, 70], // ✅ Reduced from [65, 75, 65, 70]
+      pageMargins: [50, 75, 50, 70],
       header: (currentPage: number) => {
         if (currentPage <= 1) return {};
         return {
@@ -934,7 +993,7 @@ class ProfessionalPdfGenerator {
               width: 'auto'
             }
           ],
-          margin: [50, 22, 50, 0] // ✅ Updated to match new margins
+          margin: [50, 22, 50, 0]
         };
       },
       footer: (currentPage: number) => {
@@ -945,7 +1004,7 @@ class ProfessionalPdfGenerator {
               text: 'Pustakam Injin',
               fontSize: 7,
               color: '#999999',
-              margin: [50, 0, 0, 0], // ✅ Updated to match new margins
+              margin: [50, 0, 0, 0],
               width: '*'
             },
             {
@@ -953,7 +1012,7 @@ class ProfessionalPdfGenerator {
               fontSize: 7,
               color: '#999999',
               alignment: 'right',
-              margin: [0, 0, 50, 0], // ✅ Updated to match new margins
+              margin: [0, 0, 50, 0],
               width: '*'
             }
           ],
@@ -1000,12 +1059,12 @@ class ProfessionalPdfGenerator {
             </div>
             <div class="space-y-3 mb-6">
               <p class="text-sm text-gray-300 leading-relaxed">
-                Your document has been formatted with professional typography, justified text, and enhanced code blocks.
+                Your document has been formatted with professional typography and enhanced code blocks.
               </p>
               <ul class="space-y-2 text-sm text-gray-400">
-                <li class="flex items-start gap-2"><span class="text-green-400 shrink-0">✓</span><span>Fully justified paragraph alignment</span></li>
-                <li class="flex items-start gap-2"><span class="text-green-400 shrink-0">✓</span><span>Beautiful bordered code blocks</span></li>
-                <li class="flex items-start gap-2"><span class="text-green-400 shrink-0">✓</span><span>Optimized margins for more content</span></li>
+                <li class="flex items-start gap-2"><span class="text-green-400 shrink-0">✓</span><span>Square-bordered code blocks with dynamic sizing</span></li>
+                <li class="flex items-start gap-2"><span class="text-green-400 shrink-0">✓</span><span>Auto-split for long code (no overflow)</span></li>
+                <li class="flex items-start gap-2"><span class="text-green-400 shrink-0">✓</span><span>Perfectly aligned text and borders</span></li>
                 <li class="flex items-start gap-2"><span class="text-green-400 shrink-0">✓</span><span>${this.fontFamily} font for consistent style</span></li>
                 ${hasEmojis ? '<li class="flex items-start gap-2"><span class="text-yellow-400 shrink-0">•</span><span>Emojis removed for compatibility</span></li>' : ''}
                 ${hasComplexFormatting ? '<li class="flex items-start gap-2"><span class="text-yellow-400 shrink-0">•</span><span>Advanced formatting simplified</span></li>' : ''}
