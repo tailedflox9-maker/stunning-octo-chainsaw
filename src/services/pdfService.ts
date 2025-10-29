@@ -1,3 +1,10 @@
+// src/services/pdfService.ts - PROFESSIONAL ACADEMIC VERSION (Updated: Aptos-Mono as Main Font + Disclaimer Page)
+// Quick Update: Removed Lora loading. Uses Aptos-Mono (Regular & Bold) as primary font for all text.
+// Falls back to Roboto if files missing. Monospaced for a clean, code-inspired academic look.
+// Italics fall back to regular (no italic variant). Code blocks also use it for consistency.
+// FIXED: Filename template string issue resolved
+// STEALTH MODE: All console logs removed for privacy
+
 import { BookProject } from '../types';
 let isGenerating = false;
 let pdfMake: any = null;
@@ -13,40 +20,84 @@ async function loadPdfMake() {
       import('pdfmake/build/vfs_fonts')
     ]);
     pdfMake = pdfMakeModule.default || pdfMakeModule;
-    const vfsFonts = pdfFontsModule.default || pdfFontsModule;
+    const fonts = pdfFontsModule.default || pdfFontsModule;
 
-    // Initialize VFS from the imported module
-    if (vfsFonts?.pdfMake?.vfs) {
-      pdfMake.vfs = vfsFonts.pdfMake.vfs;
-    } else if (vfsFonts?.vfs) {
-      pdfMake.vfs = vfsFonts.vfs;
-    } else {
-      throw new Error('Could not find virtual font system in pdfmake imports.');
+    // VFS Detection
+    let vfs = null;
+    if (fonts?.pdfMake?.vfs) {
+      vfs = fonts.pdfMake.vfs;
+    } else if (fonts?.vfs) {
+      vfs = fonts.vfs;
+    } else if (typeof fonts === 'object' && fonts !== null) {
+      const possibleVfs: any = {};
+      for (const key in fonts) {
+        if (key.includes('.ttf') || key.includes('Roboto')) {
+          possibleVfs[key] = fonts[key];
+        }
+      }
+      if (Object.keys(possibleVfs).length > 0) {
+        vfs = possibleVfs;
+      }
     }
+    if (!vfs && pdfFontsModule?.pdfMake?.vfs) {
+      vfs = pdfFontsModule.pdfMake.vfs;
+    }
+    if (!vfs && pdfFontsModule?.default?.pdfMake?.vfs) {
+      vfs = pdfFontsModule.default.pdfMake.vfs;
+    }
+    if (!vfs && typeof fonts === 'object') {
+      const findVfs = (obj: any, depth = 0): any => {
+        if (depth > 3) return null;
+        if (obj?.vfs && typeof obj.vfs === 'object') return obj.vfs;
+        if (typeof obj !== 'object' || obj === null) return null;
+        for (const key in obj) {
+          const result = findVfs(obj[key], depth + 1);
+          if (result) return result;
+        }
+        return null;
+      };
+      vfs = findVfs(fonts);
+    }
+    if (!vfs) {
+      throw new Error('FONT_VFS_NOT_FOUND');
+    }
+    pdfMake.vfs = vfs;
 
-    // Attempt to load custom Aptos-Mono fonts (silently)
+    // Auto-load Aptos-Mono fonts from /fonts/
     const basePath = '/fonts/';
     const aptosMonoFonts = [
       { name: 'Aptos-Mono.ttf', key: 'Aptos-Mono.ttf' },
       { name: 'Aptos-Mono-Bold.ttf', key: 'Aptos-Mono-Bold.ttf' }
     ];
-
+    let hasAptosMono = false;
     for (const font of aptosMonoFonts) {
       try {
         const response = await fetch(`${basePath}${font.name}`);
         if (response.ok) {
           const arrayBuffer = await response.arrayBuffer();
-          const base64 = btoa(new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), ''));
+          const base64 = btoa(
+            new Uint8Array(arrayBuffer).reduce(
+              (data, byte) => data + String.fromCharCode(byte),
+              ''
+            )
+          );
           pdfMake.vfs[font.key] = base64;
+          hasAptosMono = true;
         }
       } catch (error) {
-        // Silently fail - fonts will fall back to default
+        // Silent fail - will use fallback font
       }
     }
+    const vfsKeys = Object.keys(vfs);
+    if (vfsKeys.length === 0) {
+      throw new Error('VFS_EMPTY');
+    }
 
-    // Configure fonts based on what's available in the VFS
-    const aptosMonoInVfs = pdfMake.vfs['Aptos-Mono.ttf'] && pdfMake.vfs['Aptos-Mono-Bold.ttf'];
+    // Check which fonts are actually available in VFS
+    const aptosMonoInVfs = vfs['Aptos-Mono.ttf'] && vfs['Aptos-Mono-Bold.ttf'];
+    const robotoInVfs = vfs['Roboto-Regular.ttf'] && vfs['Roboto-Medium.ttf'];
 
+    // Configure fonts based on what's actually available
     if (aptosMonoInVfs) {
       pdfMake.fonts = {
         'Aptos-Mono': {
@@ -66,11 +117,9 @@ async function loadPdfMake() {
         }
       };
     }
-    
     fontsLoaded = true;
     return pdfMake;
   } catch (error) {
-    console.error('pdfMake loading failed:', error);
     fontsLoaded = false;
     pdfMake = null;
     throw error;
@@ -200,6 +249,7 @@ class ProfessionalPdfGenerator {
         color: '#1f2937',
         lineHeight: 1.4
       },
+      // Disclaimer page styles
       disclaimerTitle: {
         fontSize: 24,
         bold: true,
@@ -405,7 +455,7 @@ class ProfessionalPdfGenerator {
                 lineWidth: 2,
                 lineColor: '#d1d5db'
               }],
-              margin: [0, 15, 0, 20]
+              margin: [0, 20, 0, 30]
             });
           }
           isFirstModule = false;
@@ -433,15 +483,15 @@ class ProfessionalPdfGenerator {
         content.push({
           text: '• ' + this.cleanText(trimmed.replace(/^[-*+]\s+/, '')),
           style: 'listItem',
-          margin: [0, 2, 0, 2]
+          margin: [10, 3, 0, 3]
         });
       } else if (trimmed.match(/^\d+\.\s+/)) {
         flushParagraph();
-        const num = trimmed.match(/^(\d+)\./)?. || '';
+        const num = trimmed.match(/^(\d+)\./)?.[1] || '';
         content.push({
           text: num + '. ' + this.cleanText(trimmed.replace(/^\d+\.\s+/, '')),
           style: 'listItem',
-          margin: [0, 2, 0, 2]
+          margin: [10, 3, 0, 3]
         });
       } else if (trimmed.startsWith('>')) {
         flushParagraph();
@@ -460,10 +510,10 @@ class ProfessionalPdfGenerator {
               width: '*',
               text: this.cleanText(trimmed.substring(1).trim()),
               style: 'blockquote',
-              margin: [10, 5, 0, 5]
+              margin: [8, 0, 0, 0]
             }
           ],
-          margin: [0, 5, 0, 10]
+          margin: [15, 10, 15, 10]
         });
       } else {
         const cleaned = this.cleanText(trimmed);
@@ -478,7 +528,7 @@ class ProfessionalPdfGenerator {
 
   private createDisclaimerPage(): PDFContent[] {
     return [
-      { text: '', margin: [0, 40, 0, 0] },
+      { text: '', margin: [0, 60, 0, 0] },
       {
         text: 'IMPORTANT DISCLAIMER',
         style: 'disclaimerTitle'
@@ -492,7 +542,7 @@ class ProfessionalPdfGenerator {
           h: 2,
           color: '#4a5568'
         }],
-        margin: [0, 0, 0, 20]
+        margin: [0, 0, 0, 30]
       },
       {
         text: 'AI-Generated Content Notice',
@@ -514,14 +564,14 @@ class ProfessionalPdfGenerator {
           'This content should not be considered a substitute for professional advice in medical, legal, financial, or other specialized fields.'
         ],
         style: 'disclaimerNote',
-        margin: [0, 0, 0, 15]
+        margin: [20, 10, 0, 20]
       },
       {
         text: 'Intellectual Property & Usage',
         fontSize: 12,
         bold: true,
         color: '#2d3748',
-        margin: [0, 15, 0, 12]
+        margin: [0, 10, 0, 12]
       },
       {
         text: 'This document is provided "as-is" for informational and educational purposes. Users are encouraged to fact-check, cross-reference, and critically evaluate all content. The Pustakam Injin serves as a knowledge exploration tool and starting point for research, not as a definitive source of truth.',
@@ -532,7 +582,7 @@ class ProfessionalPdfGenerator {
         fontSize: 12,
         bold: true,
         color: '#2d3748',
-        margin: [0, 15, 0, 12]
+        margin: [0, 10, 0, 12]
       },
       {
         text: 'While the Pustakam Injin employs advanced AI models and formatting techniques to produce professional-quality documents, no warranty is made regarding completeness, reliability, or accuracy. Users assume full responsibility for how they use, interpret, and apply this content.',
@@ -551,7 +601,7 @@ class ProfessionalPdfGenerator {
             minute: '2-digit'
           }), fontSize: 9, color: '#2d3748' }
         ],
-        margin: [0, 15, 0, 12]
+        margin: [0, 30, 0, 10]
       },
       {
         text: 'This document is generated using advanced AI models. Always cross-verify with trusted sources.',
@@ -559,14 +609,14 @@ class ProfessionalPdfGenerator {
         italics: true,
         color: '#718096',
         alignment: 'center',
-        margin: [0, 0, 0, 10]
+        margin: [0, 0, 0, 20]
       },
       {
         text: 'For questions or concerns about this content, please refer to the Pustakam Injin documentation or contact the platform administrator.',
         fontSize: 8,
         color: '#718096',
         alignment: 'center',
-        margin: [0, 0, 0, 0]
+        margin: [0, 0, 0, 20]
       }
     ];
   }
@@ -579,7 +629,7 @@ class ProfessionalPdfGenerator {
     model?: string;
   }): PDFContent[] {
     return [
-      { text: '', margin: [0, 40, 0, 0] },
+      { text: '', margin: [0, 80, 0, 0] },
       {
         text: title,
         style: 'coverTitle',
@@ -589,7 +639,7 @@ class ProfessionalPdfGenerator {
         text: 'Generated by Pustakam Injin',
         fontSize: 11,
         color: '#666666',
-        margin: [0, 0, 0, 30]
+        margin: [0, 0, 0, 40]
       },
       {
         text: 'Abstract',
@@ -604,7 +654,7 @@ class ProfessionalPdfGenerator {
         lineHeight: 1.6,
         alignment: 'justify',
         color: '#1a1a1a',
-        margin: [0, 0, 0, 20]
+        margin: [0, 0, 0, 30]
       },
       {
         stack: [
@@ -613,39 +663,39 @@ class ProfessionalPdfGenerator {
             fontSize: 11,
             bold: true,
             color: '#1a1a1a',
-            margin: [0, 0, 0, 10]
+            margin: [0, 0, 0, 8]
           },
           {
             columns: [
               { text: 'Word Count:', width: 80, fontSize: 9, color: '#666666' },
               { text: metadata.words.toLocaleString(), fontSize: 9, color: '#1a1a1a' }
             ],
-            margin: [0, 0, 0, 6]
+            margin: [0, 0, 0, 4]
           },
           {
             columns: [
               { text: 'Chapters:', width: 80, fontSize: 9, color: '#666666' },
               { text: metadata.modules.toString(), fontSize: 9, color: '#1a1a1a' }
             ],
-            margin: [0, 0, 0, 6]
+            margin: [0, 0, 0, 4]
           },
           {
             columns: [
               { text: 'Generated:', width: 80, fontSize: 9, color: '#666666' },
               { text: metadata.date, fontSize: 9, color: '#1a1a1a' }
             ],
-            margin: [0, 0, 0, 6]
+            margin: [0, 0, 0, 4]
           },
           ...(metadata.provider && metadata.model ? [{
             columns: [
               { text: 'AI Model:', width: 80, fontSize: 9, color: '#666666' },
               { text: `${metadata.provider} ${metadata.model}`, fontSize: 9, color: '#1a1a1a' }
             ],
-            margin: [0, 0, 0, 6]
+            margin: [0, 0, 0, 4]
           }] : [])
         ]
       },
-      { text: '', margin: [0, 40, 0, 0] },
+      { text: '', margin: [0, 0, 0, 80] },
       {
         stack: [
           {
@@ -690,7 +740,8 @@ class ProfessionalPdfGenerator {
       .replace(/[^a-z0-9\s-]/gi, '')
       .trim()
       .split(/\s+/)
-      .map((word) => {
+      .map((word, index) => {
+        // Capitalize first letter of each word, lowercase rest
         return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
       })
       .join('_')
@@ -711,11 +762,9 @@ class ProfessionalPdfGenerator {
     const hasAptosMono = Object.keys(pdfMakeLib.vfs).some(key => key.includes('Aptos-Mono'));
     this.fontFamily = hasAptosMono ? 'Aptos-Mono' : 'Roboto';
     const totalWords = project.modules.reduce((sum, m) => sum + m.wordCount, 0);
-    
-    const providerMatch = project.finalBook?.match(/\*\*Provider:\*\* (.*?) \((.*?)\)/);
-    const provider = providerMatch ? providerMatch : undefined;
-    const model = providerMatch ? providerMatch : undefined;
-
+    const providerMatch = project.finalBook?.match(/\*\*Provider:\*\* (.+?) $(.+?)$/);
+    const provider = providerMatch ? providerMatch[1] : undefined;
+    const model = providerMatch ? providerMatch[2] : undefined;
     const coverContent = this.createCoverPage(project.title, {
       words: totalWords,
       modules: project.modules.length,
@@ -743,7 +792,7 @@ class ProfessionalPdfGenerator {
         lineHeight: 1.5
       },
       pageSize: 'A4',
-      pageMargins: [40, 40, 40, 40],
+      pageMargins: [65, 75, 65, 70],
       header: (currentPage: number) => {
         if (currentPage <= 1) return {};
         return {
@@ -763,7 +812,7 @@ class ProfessionalPdfGenerator {
               width: 'auto'
             }
           ],
-          margin: [40, 10, 40, 10]
+          margin: [65, 22, 65, 0]
         };
       },
       footer: (currentPage: number, pageCount: number) => {
@@ -774,7 +823,7 @@ class ProfessionalPdfGenerator {
               text: 'Pustakam Injin',
               fontSize: 7,
               color: '#999999',
-              margin: [0, 0, 0, 0],
+              margin: [65, 0, 0, 0],
               width: '*'
             },
             {
@@ -782,11 +831,11 @@ class ProfessionalPdfGenerator {
               fontSize: 7,
               color: '#999999',
               alignment: 'right',
-              margin: [0, 0, 0, 0],
+              margin: [0, 0, 65, 0],
               width: '*'
             }
           ],
-          margin: [40, 0, 40, 10]
+          margin: [0, 20, 0, 0]
         };
       },
       info: {
@@ -831,7 +880,7 @@ class ProfessionalPdfGenerator {
                 <li class="flex items-start gap-2"><span class="text-green-400 shrink-0">✓</span><span>Clean, readable 10pt body text</span></li>
                 <li class="flex items-start gap-2"><span class="text-green-400 shrink-0">✓</span><span>Professional cover page design</span></li>
                 <li class="flex items-start gap-2"><span class="text-green-400 shrink-0">✓</span><span>Justified text alignment</span></li>
-                <li class="flex items-start gap-2"><span class="text-green-400 shrink-0">✓</span><span>Optimized font rendering</span></li>
+                <li class="flex items-start gap-2"><span class="text-green-400 shrink-0">✓</span><span>${this.fontFamily} font for consistent monospaced style</span></li>
                 ${hasEmojis ? '<li class="flex items-start gap-2"><span class="text-yellow-400 shrink-0">•</span><span>Emojis removed for compatibility</span></li>' : ''}
                 ${hasComplexFormatting ? '<li class="flex items-start gap-2"><span class="text-yellow-400 shrink-0">•</span><span>Advanced formatting simplified</span></li>' : ''}
               </ul>
@@ -862,7 +911,6 @@ class ProfessionalPdfGenerator {
           });
         });
       } catch (error) {
-        console.error('PDF creation failed:', error);
         reject(error);
       }
     });
@@ -885,7 +933,6 @@ export const pdfService = {
       const generator = new ProfessionalPdfGenerator();
       await generator.generate(project, onProgress);
     } catch (error: any) {
-      console.error('PDF generation error:', error);
       alert('PDF generation failed. Please try:\n\n' +
             '1. Hard refresh the page (Ctrl+Shift+R)\n' +
             '2. Clear browser cache\n' +
