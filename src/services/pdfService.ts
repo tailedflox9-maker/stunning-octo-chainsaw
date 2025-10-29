@@ -2,6 +2,8 @@
 // Quick Update: Removed Lora loading. Uses Aptos-Mono (Regular & Bold) as primary font for all text.
 // Falls back to Roboto if files missing. Monospaced for a clean, code-inspired academic look.
 // Italics fall back to regular (no italic variant). Code blocks also use it for consistency.
+// FIXED: Filename template string issue resolved
+
 import { BookProject } from '../types';
 let isGenerating = false;
 let pdfMake: any = null;
@@ -705,6 +707,17 @@ class ProfessionalPdfGenerator {
     ];
   }
 
+  private generateSafeFilename(title: string): string {
+    const sanitized = title
+      .replace(/[^a-z0-9\s-]/gi, '')
+      .replace(/\s+/g, '_')
+      .toLowerCase()
+      .substring(0, 50);
+    
+    const date = new Date().toISOString().slice(0, 10);
+    return `${sanitized}_${date}.pdf`;
+  }
+
   public async generate(project: BookProject, onProgress: (progress: number) => void): Promise<void> {
     console.log('🎨 Starting professional PDF generation for:', project.title);
     onProgress(10);
@@ -802,11 +815,7 @@ class ProfessionalPdfGenerator {
     return new Promise((resolve, reject) => {
       try {
         const pdfDocGenerator = pdfMakeLib.createPdf(docDefinition);
-        const filename = `\${project.title
-          .replace(/[^a-z0-9\s-]/gi, '')
-          .replace(/\s+/g, '_')
-          .toLowerCase()
-          .substring(0, 50)}_\${new Date().toISOString().slice(0, 10)}.pdf`;
+        const filename = this.generateSafeFilename(project.title);
         const hasEmojis = /[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu.test(
           project.finalBook || ''
         );
