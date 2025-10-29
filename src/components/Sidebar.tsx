@@ -54,7 +54,7 @@ const modelConfig = {
       { id: 'gemini-2.5-flash-lite', name: 'Gemini 2.5 Flash Lite', description: 'Enhanced lightweight model' },
       { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', description: 'Balanced speed and capability' },
       { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', description: 'Latest flash model' },
-      { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash', description: 'Previous generation flash' },
+      { id: 'gemma-3-27b-it', name: 'Gemma 3 27B IT', description: 'High-quality instruction-tuned model' },
       { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', description: 'Most capable model' },
     ]
   },
@@ -62,10 +62,10 @@ const modelConfig = {
     name: "Mistral AI",
     icon: MistralIcon,
     models: [
-      { id: 'open-mistral-7b', name: 'Open Mistral 7B', description: 'Open source 7B model' },
-      { id: 'open-mixtral-8x7b', name: 'Open Mixtral 8x7B', description: 'Mixture of experts model' },
-      { id: 'mistral-small-latest', name: 'Mistral Small', description: 'Cost-effective model' },
+      { id: 'mistral-small-latest', name: 'Mistral Small', description: 'Fast and cost-effective' },
+      { id: 'mistral-medium-latest', name: 'Mistral Medium', description: 'Balanced performance' },
       { id: 'mistral-large-latest', name: 'Mistral Large', description: 'Most powerful model' },
+      { id: 'pixtral-large-latest', name: 'Pixtral Large', description: 'Multimodal capabilities' },
     ]
   },
   zhipu: {
