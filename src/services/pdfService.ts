@@ -73,7 +73,7 @@ async function loadPdfMake() {
       { name: 'Aptos-Mono-Bold.ttf', key: 'Aptos-Mono-Bold.ttf' },
       { name: 'Aptos-Mono-Bold-Italic.ttf', key: 'Aptos-Mono-Bold-Italic.ttf' }
     ];
-    let hasAptosMono = false;
+    let loadedFonts = 0;
     console.log('[DEBUG] Attempting to load Aptos-Mono fonts...');
     for (const font of aptosMonoFonts) {
       try {
@@ -87,8 +87,8 @@ async function loadPdfMake() {
             )
           );
           pdfMake.vfs[font.key] = base64;
-          hasAptosMono = true;
-          console.log(`[DEBUG] ✓ Loaded ${font.name}`);
+          loadedFonts++;
+          console.log(`[DEBUG] ✓ Loaded ${font.name} (${Math.round(base64.length / 1024)}KB)`);
         } else {
           console.log(`[DEBUG] ✗ ${font.name} not found (${response.status})`);
         }
@@ -102,24 +102,44 @@ async function loadPdfMake() {
     }
 
     // Check which fonts are actually available in VFS
-    const aptosMonoInVfs = vfs['Aptos-Mono.ttf'] && vfs['Aptos-Mono-Bold.ttf'];
-    const robotoInVfs = vfs['Roboto-Regular.ttf'] && vfs['Roboto-Medium.ttf'];
+    const aptosMonoInVfs = !!vfs['Aptos-Mono.ttf'] && !!vfs['Aptos-Mono-Bold.ttf'];
+    const robotoInVfs = !!vfs['Roboto-Regular.ttf'] && !!vfs['Roboto-Medium.ttf'];
     
     console.log('[DEBUG] Font availability - Aptos-Mono:', aptosMonoInVfs, 'Roboto:', robotoInVfs);
+    console.log('[DEBUG] VFS keys:', Object.keys(vfs).filter(k => k.includes('Aptos') || k.includes('Roboto')));
 
     // Configure fonts based on what's actually available
     if (aptosMonoInVfs) {
-      const hasBoldItalic = vfs['Aptos-Mono-Bold-Italic.ttf'];
+      const hasBoldItalic = !!vfs['Aptos-Mono-Bold-Italic.ttf'];
       console.log('[DEBUG] Bold-Italic available:', hasBoldItalic);
-      pdfMake.fonts = {
-        'Aptos-Mono': {
-          normal: 'Aptos-Mono.ttf',
-          bold: 'Aptos-Mono-Bold.ttf',
-          italics: hasBoldItalic ? 'Aptos-Mono-Bold-Italic.ttf' : 'Aptos-Mono.ttf', // Fallback to Bold-Italic or Regular
-          bolditalics: hasBoldItalic ? 'Aptos-Mono-Bold-Italic.ttf' : 'Aptos-Mono-Bold.ttf'
-        }
+      
+      // Verify the font data is actually loaded (not just true/false)
+      const isValidFont = (key: string) => {
+        const data = vfs[key];
+        return data && typeof data === 'string' && data.length > 1000;
       };
-      console.log('[DEBUG] Using Aptos-Mono fonts');
+      
+      if (isValidFont('Aptos-Mono.ttf') && isValidFont('Aptos-Mono-Bold.ttf')) {
+        pdfMake.fonts = {
+          'Aptos-Mono': {
+            normal: 'Aptos-Mono.ttf',
+            bold: 'Aptos-Mono-Bold.ttf',
+            italics: (hasBoldItalic && isValidFont('Aptos-Mono-Bold-Italic.ttf')) ? 'Aptos-Mono-Bold-Italic.ttf' : 'Aptos-Mono.ttf',
+            bolditalics: (hasBoldItalic && isValidFont('Aptos-Mono-Bold-Italic.ttf')) ? 'Aptos-Mono-Bold-Italic.ttf' : 'Aptos-Mono-Bold.ttf'
+          }
+        };
+        console.log('[DEBUG] Using Aptos-Mono fonts');
+      } else {
+        console.log('[DEBUG] Aptos-Mono data invalid, falling back to Roboto');
+        pdfMake.fonts = {
+          Roboto: {
+            normal: 'Roboto-Regular.ttf',
+            bold: 'Roboto-Medium.ttf',
+            italics: 'Roboto-Italic.ttf',
+            bolditalics: 'Roboto-MediumItalic.ttf'
+          }
+        };
+      }
     } else {
       pdfMake.fonts = {
         Roboto: {
