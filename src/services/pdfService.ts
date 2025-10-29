@@ -291,6 +291,48 @@ class ProfessionalPdfGenerator {
       .trim();
   }
 
+  private parseInlineMarkdown(text: string): any {
+    const parts: any[] = [];
+    let lastIndex = 0;
+    
+    // Match **bold**, *italic*, `code`, ~~strikethrough~~
+    const regex = /(\*\*\*(.+?)\*\*\*|\*\*(.+?)\*\*|\*(.+?)\*|__(.+?)__|_(.+?)_|`(.+?)`|~~(.+?)~~)/g;
+    let match;
+    
+    while ((match = regex.exec(text)) !== null) {
+      // Add text before the match
+      if (match.index > lastIndex) {
+        parts.push({ text: text.substring(lastIndex, match.index) });
+      }
+      
+      // Add formatted text
+      if (match[2]) { // ***bold italic***
+        parts.push({ text: match[2], bold: true, italics: true });
+      } else if (match[3]) { // **bold**
+        parts.push({ text: match[3], bold: true });
+      } else if (match[4]) { // *italic*
+        parts.push({ text: match[4], italics: true });
+      } else if (match[5]) { // __bold__
+        parts.push({ text: match[5], bold: true });
+      } else if (match[6]) { // _italic_
+        parts.push({ text: match[6], italics: true });
+      } else if (match[7]) { // `code`
+        parts.push({ text: match[7], font: this.fontFamily, background: '#f3f4f6' });
+      } else if (match[8]) { // ~~strikethrough~~
+        parts.push({ text: match[8], decoration: 'lineThrough' });
+      }
+      
+      lastIndex = regex.lastIndex;
+    }
+    
+    // Add remaining text
+    if (lastIndex < text.length) {
+      parts.push({ text: text.substring(lastIndex) });
+    }
+    
+    return parts.length === 0 ? text : parts.length === 1 ? parts[0] : parts;
+  }
+
   private parseMarkdownToContent(markdown: string): PDFContent[] {
     const content: PDFContent[] = [];
     const lines = markdown.split('\n');
@@ -307,7 +349,10 @@ class ProfessionalPdfGenerator {
     const flushParagraph = () => {
       if (paragraphBuffer.length > 0) {
         const text = paragraphBuffer.join(' ').trim();
-        if (text && !skipToC) content.push({ text: this.cleanText(text), style: 'paragraph' });
+        if (text && !skipToC) {
+          const formattedText = this.parseInlineMarkdown(text);
+          content.push({ text: formattedText, style: 'paragraph' });
+        }
         paragraphBuffer = [];
       }
     };
@@ -334,7 +379,7 @@ class ProfessionalPdfGenerator {
             widths: colWidths,
             body: [
               tableHeaders.map(h => ({
-                text: this.cleanText(h),
+                text: this.parseInlineMarkdown(h),
                 style: 'tableHeader',
                 fillColor: '#d1d5db',
                 margin: [5, 5, 5, 5],
@@ -342,7 +387,7 @@ class ProfessionalPdfGenerator {
               })),
               ...tableRows.map(row =>
                 row.map(cell => ({
-                  text: this.cleanText(cell),
+                  text: this.parseInlineMarkdown(cell),
                   style: 'tableCell',
                   margin: [5, 4, 5, 4],
                   alignment: 'left'
@@ -443,8 +488,9 @@ class ProfessionalPdfGenerator {
                               /^#\s+module\s+\d+/i.test(trimmed);
       if (trimmed.startsWith('# ')) {
         flushParagraph();
-        let text = this.cleanText(trimmed.substring(2));
+        let text = trimmed.substring(2);
         text = this.capitalizeFirstLetter(text);
+        const formattedText = this.parseInlineMarkdown(text);
         if (isModuleHeading) {
           if (!isFirstModule) {
             content.push({
@@ -459,37 +505,39 @@ class ProfessionalPdfGenerator {
             });
           }
           isFirstModule = false;
-          content.push({ text, style: 'h1Module' });
+          content.push({ text: formattedText, style: 'h1Module' });
         } else {
-          content.push({ text, style: 'h1Module' });
+          content.push({ text: formattedText, style: 'h1Module' });
         }
       } else if (trimmed.startsWith('## ')) {
         flushParagraph();
-        let text = this.cleanText(trimmed.substring(3));
+        let text = trimmed.substring(3);
         text = this.capitalizeFirstLetter(text);
-        content.push({ text, style: 'h2' });
+        content.push({ text: this.parseInlineMarkdown(text), style: 'h2' });
       } else if (trimmed.startsWith('### ')) {
         flushParagraph();
-        let text = this.cleanText(trimmed.substring(4));
+        let text = trimmed.substring(4);
         text = this.capitalizeFirstLetter(text);
-        content.push({ text, style: 'h3' });
+        content.push({ text: this.parseInlineMarkdown(text), style: 'h3' });
       } else if (trimmed.startsWith('#### ')) {
         flushParagraph();
-        let text = this.cleanText(trimmed.substring(5));
+        let text = trimmed.substring(5);
         text = this.capitalizeFirstLetter(text);
-        content.push({ text, style: 'h4' });
+        content.push({ text: this.parseInlineMarkdown(text), style: 'h4' });
       } else if (trimmed.match(/^[-*+]\s+/)) {
         flushParagraph();
+        const listText = trimmed.replace(/^[-*+]\s+/, '');
         content.push({
-          text: '• ' + this.cleanText(trimmed.replace(/^[-*+]\s+/, '')),
+          text: [{ text: '• ' }, ...this.parseInlineMarkdown(listText)],
           style: 'listItem',
           margin: [10, 3, 0, 3]
         });
       } else if (trimmed.match(/^\d+\.\s+/)) {
         flushParagraph();
         const num = trimmed.match(/^(\d+)\./)?.[1] || '';
+        const listText = trimmed.replace(/^\d+\.\s+/, '');
         content.push({
-          text: num + '. ' + this.cleanText(trimmed.replace(/^\d+\.\s+/, '')),
+          text: [{ text: num + '. ' }, ...this.parseInlineMarkdown(listText)],
           style: 'listItem',
           margin: [10, 3, 0, 3]
         });
@@ -508,7 +556,7 @@ class ProfessionalPdfGenerator {
             },
             {
               width: '*',
-              text: this.cleanText(trimmed.substring(1).trim()),
+              text: this.parseInlineMarkdown(trimmed.substring(1).trim()),
               style: 'blockquote',
               margin: [8, 0, 0, 0]
             }
@@ -516,7 +564,7 @@ class ProfessionalPdfGenerator {
           margin: [15, 10, 15, 10]
         });
       } else {
-        const cleaned = this.cleanText(trimmed);
+        const cleaned = trimmed.replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '').trim();
         if (cleaned) paragraphBuffer.push(cleaned);
       }
     }
