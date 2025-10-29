@@ -346,7 +346,8 @@ class ProfessionalPdfGenerator {
       parts.push({ text: text.substring(lastIndex) });
     }
     
-    return parts.length === 0 ? text : parts.length === 1 ? parts[0] : parts;
+    // Return single text if no formatting, otherwise return array
+    return parts.length === 0 ? text : (parts.length === 1 && typeof parts[0] === 'string') ? parts[0] : parts;
   }
 
   private parseMarkdownToContent(markdown: string): PDFContent[] {
@@ -543,8 +544,9 @@ class ProfessionalPdfGenerator {
       } else if (trimmed.match(/^[-*+]\s+/)) {
         flushParagraph();
         const listText = trimmed.replace(/^[-*+]\s+/, '');
+        const formattedText = this.parseInlineMarkdown(listText);
         content.push({
-          text: [{ text: '• ' }, ...this.parseInlineMarkdown(listText)],
+          text: Array.isArray(formattedText) ? [{ text: '• ' }, ...formattedText] : [{ text: '• ' }, formattedText],
           style: 'listItem',
           margin: [10, 3, 0, 3]
         });
@@ -552,8 +554,9 @@ class ProfessionalPdfGenerator {
         flushParagraph();
         const num = trimmed.match(/^(\d+)\./)?.[1] || '';
         const listText = trimmed.replace(/^\d+\.\s+/, '');
+        const formattedText = this.parseInlineMarkdown(listText);
         content.push({
-          text: [{ text: num + '. ' }, ...this.parseInlineMarkdown(listText)],
+          text: Array.isArray(formattedText) ? [{ text: num + '. ' }, ...formattedText] : [{ text: num + '. ' }, formattedText],
           style: 'listItem',
           margin: [10, 3, 0, 3]
         });
