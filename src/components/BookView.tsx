@@ -1740,24 +1740,23 @@ export function BookView({
                 <div className="space-y-6">
                   {/* ✅ Generation Progress Panel with Retry Support */}
                   {(isGenerating || isPaused || generationStatus?.status === 'waiting_retry') &&
-                    generationStatus &&
-                    generationStats && (
-                      <EmbeddedProgressPanel
-                        generationStatus={generationStatus}
-                        stats={generationStats}
-                        onCancel={() => {
-                          if (
-                            window.confirm('Cancel generation? Progress will be saved.')
-                          ) {
-                            bookService.cancelActiveRequests(currentBook.id);
-                          }
-                        }}
-                        onPause={handlePause}
-                        onResume={handleResume}
-                        onRetryDecision={onRetryDecision}
-                        availableModels={availableModels}
-                      />
-                    )}
+                    currentBook.status !== 'completed' && // ✅ FIX: Don't show for completed books
+                        generationStatus &&
+                        generationStats && (
+                              <EmbeddedProgressPanel
+                              generationStatus={generationStatus}
+                                stats={generationStats}
+                                onCancel={() => {
+                                if (window.confirm('Cancel generation? Progress will be saved.')) {
+                              bookService.cancelActiveRequests(currentBook.id);
+                              }
+                            }}
+                          onPause={handlePause}
+                          onResume={handleResume}
+                         onRetryDecision={onRetryDecision}
+                      availableModels={availableModels}
+                    />
+                  )}
 
                   {/* Ready to Generate */}
                   {currentBook.status === 'roadmap_completed' &&
