@@ -841,7 +841,7 @@ class ProfessionalPdfGenerator {
         alignment: 'left'
       },
       {
-        text: `This comprehensive ${metadata.modules}-chapter document contains ${metadata.words.toLocaleString()} words of AI-generated content. Each section has been carefully structured to provide in-depth coverage of the topic with clear explanations and practical insights.`,
+        text: `This comprehensive ${metadata.modules} chapter document contains ${metadata.words.toLocaleString()} words of AI-generated content. Each section has been carefully structured to provide in-depth coverage of the topic with clear explanations and practical insights.`,
         fontSize: 10,
         lineHeight: 1.6,
         alignment: 'justify',
