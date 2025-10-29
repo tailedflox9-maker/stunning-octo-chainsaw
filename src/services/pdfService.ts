@@ -84,7 +84,7 @@ async function loadPdfMake() {
             )
           );
           pdfMake.vfs[font.key] = base64;
-          console.log(`✓ Loaded ${font.name}`);
+          console.log(`✓ Loaded ${font.name} (${base64.substring(0, 50)}... )`);
           hasAptosMono = true;
         } else {
           console.log(`⚠ ${font.name} not found (HTTP ${response.status})`);
