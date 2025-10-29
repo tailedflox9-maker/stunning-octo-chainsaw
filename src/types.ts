@@ -7,15 +7,15 @@ export type ModelID =
   | 'gemini-2.5-flash-lite'
   | 'gemini-2.0-flash'
   | 'gemini-2.5-flash'
-  | 'gemini-1.5-flash'
+  | 'gemma-3-27b-it'
   | 'gemini-2.5-pro'
   // ZhipuAI (GLM) Models
   | 'glm-4.5-flash'
   // Mistral Models
-  | 'open-mistral-7b'
-  | 'open-mixtral-8x7b'
   | 'mistral-small-latest'
-  | 'mistral-large-latest';
+  | 'mistral-medium-latest'
+  | 'mistral-large-latest'
+  | 'pixtral-large-latest';
 
 export interface APISettings {
   googleApiKey: string;
