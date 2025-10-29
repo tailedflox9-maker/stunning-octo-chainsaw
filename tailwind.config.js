@@ -4,8 +4,8 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['Aptos-Mono', 'Inter', 'sans-serif'],
-        mono: ['Aptos-Mono', 'monospace'],
+        sans: ['Work Sans', 'sans-serif'],
+        mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', "Liberation Mono", "Courier New", 'monospace'],
       },
     },
   },
