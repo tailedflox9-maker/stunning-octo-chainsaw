@@ -34,8 +34,8 @@ export const storageUtils = {
 
       // Validate selectedModel exists for the provider
       const validModels = {
-        google: ['gemini-2.0-flash-lite', 'gemini-2.5-flash-lite', 'gemini-2.0-flash', 'gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-2.5-pro'],
-        mistral: ['open-mistral-7b', 'open-mixtral-8x7b', 'mistral-small-latest', 'mistral-large-latest'],
+        google: ['gemini-2.0-flash-lite', 'gemini-2.5-flash-lite', 'gemini-2.0-flash', 'gemini-2.5-flash', 'gemma-3-27b-it', 'gemini-2.5-pro'],
+        mistral: ['mistral-small-latest', 'mistral-medium-latest', 'mistral-large-latest', 'pixtral-large-latest'],
         zhipu: ['glm-4.5-flash']
       };
 
