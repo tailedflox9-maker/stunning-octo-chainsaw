@@ -51,7 +51,7 @@ class BookGenerationService {
 
   private onProgressUpdate?: (bookId: string, updates: Partial<BookProject>) => void;
   private onGenerationStatusUpdate?: (bookId: string, status: GenerationStatus) => void;
-  private requestTimeout = 180000;
+  private requestTimeout = 360000;
   private activeRequests = new Map<string, AbortController>();
   private checkpoints = new Map<string, GenerationCheckpoint>();
   private currentGeneratedTexts = new Map<string, string>();
