@@ -263,16 +263,16 @@ class ProfessionalPdfGenerator {
         alignment: 'justify'
       },
       tableHeader: {
-        fontSize: 10.5,
+        fontSize: 9, // ✅ Reduced from 10.5
         bold: true,
         color: '#000000',
         fillColor: '#d1d5db',
         alignment: 'left'
       },
       tableCell: {
-        fontSize: 10,
+        fontSize: 8.5, // ✅ Reduced from 10
         color: '#1f2937',
-        lineHeight: 1.4,
+        lineHeight: 1.3, // ✅ Reduced from 1.4
         alignment: 'left'
       },
       disclaimerTitle: {
@@ -488,25 +488,45 @@ class ProfessionalPdfGenerator {
     const flushTable = () => {
       if (tableRows.length > 0 && tableHeaders.length > 0 && !skipToC) {
         const colCount = tableHeaders.length;
-        const colWidths = Array(colCount).fill('*');
+        
+        // ✅ FIXED: Dynamic column widths based on content
+        // Calculate approximate width for each column
+        const calculateColumnWidths = () => {
+          if (colCount <= 2) {
+            // 2 columns: equal split
+            return Array(colCount).fill('*');
+          } else if (colCount === 3) {
+            // 3 columns: slightly wider middle
+            return ['*', '*', '*'];
+          } else if (colCount === 4) {
+            // 4 columns: equal
+            return Array(colCount).fill('*');
+          } else {
+            // 5+ columns: make them narrower
+            return Array(colCount).fill('auto');
+          }
+        };
+        
         content.push({
           table: {
             headerRows: 1,
-            widths: colWidths,
+            widths: calculateColumnWidths(),
             body: [
               tableHeaders.map(h => ({
                 text: this.parseInlineMarkdown(h),
                 style: 'tableHeader',
                 fillColor: '#d1d5db',
-                margin: [5, 5, 5, 5],
-                alignment: 'left'
+                margin: [4, 4, 4, 4], // ✅ Reduced padding
+                alignment: 'left',
+                fontSize: 9 // ✅ Smaller font for headers
               })),
               ...tableRows.map(row =>
                 row.map(cell => ({
                   text: this.parseInlineMarkdown(cell),
                   style: 'tableCell',
-                  margin: [5, 4, 5, 4],
-                  alignment: 'left'
+                  margin: [4, 3, 4, 3], // ✅ Reduced padding
+                  alignment: 'left',
+                  fontSize: 8.5 // ✅ Smaller font for cells
                 }))
               )
             ]
@@ -516,12 +536,16 @@ class ProfessionalPdfGenerator {
             vLineWidth: () => 0.5,
             hLineColor: (i: number, node: any) => (i === 0 || i === 1 || i === node.table.body.length) ? '#6b7280' : '#9ca3af',
             vLineColor: () => '#9ca3af',
-            paddingLeft: () => 5,
-            paddingRight: () => 5,
-            paddingTop: () => 4,
-            paddingBottom: () => 4
+            paddingLeft: () => 4, // ✅ Reduced from 5
+            paddingRight: () => 4,
+            paddingTop: () => 3, // ✅ Reduced from 4
+            paddingBottom: () => 3
           },
-          margin: [0, 8, 0, 12]
+          margin: [0, 8, 0, 12],
+          // ✅ Allow table to break across pages if needed
+          dontBreakRows: false,
+          // ✅ Keep table within page bounds
+          widths: 'auto'
         });
         tableRows = [];
         tableHeaders = [];
@@ -776,14 +800,6 @@ class ProfessionalPdfGenerator {
         ],
         margin: [0, 30, 0, 10],
         alignment: 'left'
-      },
-      {
-        text: 'This document is generated using advanced AI models. Always cross-verify with trusted sources.',
-        fontSize: 9,
-        italics: true,
-        color: '#718096',
-        alignment: 'center',
-        margin: [0, 0, 0, 20]
       },
       {
         text: 'For questions or concerns about this content, please refer to the Pustakam Injin documentation or contact the platform administrator.',
