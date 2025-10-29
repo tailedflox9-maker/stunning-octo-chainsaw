@@ -3,6 +3,7 @@ import React from 'react';
 import { X, Shield, Database, Download, Upload, Trash2, HelpCircle, Key, Settings, ExternalLink, Eye, EyeOff, User, Zap, Globe, Cpu, BookOpen, AlertTriangle, Plus } from 'lucide-react';
 import { APISettings } from '../types';
 import { storageUtils } from '../utils/storage';
+import { DisclaimerPage } from './DisclaimerPage';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -28,11 +29,15 @@ export function SettingsModal({ isOpen, onClose, settings, onSaveSettings }: Set
   const [visibleApis, setVisibleApis] = React.useState<Record<string, boolean>>({});
   const [importPreview, setImportPreview] = React.useState<ImportPreview | null>(null);
   const [showImportModal, setShowImportModal] = React.useState(false);
+  const [showDisclaimer, setShowDisclaimer] = React.useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   React.useEffect(() => setLocalSettings(settings), [settings, isOpen]);
 
-  const handleSave = () => { onSaveSettings(localSettings); onClose(); };
+  const handleSave = () => { 
+    onSaveSettings(localSettings); 
+    onClose(); 
+  };
 
   const handleExportData = () => {
     const data = { 
@@ -61,7 +66,6 @@ export function SettingsModal({ isOpen, onClose, settings, onSaveSettings }: Set
         const existingBooks = storageUtils.getBooks();
         const existingSettings = storageUtils.getSettings();
         
-        // Analyze conflicts
         const duplicateBooks = importData.books ? 
           importData.books.filter((importBook: any) => 
             existingBooks.some(existingBook => existingBook.id === importBook.id)
@@ -92,18 +96,15 @@ export function SettingsModal({ isOpen, onClose, settings, onSaveSettings }: Set
     
     try {
       if (mode === 'replace') {
-        // Replace all data
         storageUtils.saveBooks(importPreview.books);
         if (importPreview.settings) {
           setLocalSettings(importPreview.settings);
           storageUtils.saveSettings(importPreview.settings);
         }
       } else {
-        // Merge data intelligently
         const existingBooks = storageUtils.getBooks();
         const existingSettings = storageUtils.getSettings();
         
-        // Merge books (skip duplicates, add new ones)
         const mergedBooks = [...existingBooks];
         importPreview.books.forEach(importBook => {
           const exists = mergedBooks.some(existing => existing.id === importBook.id);
@@ -113,7 +114,6 @@ export function SettingsModal({ isOpen, onClose, settings, onSaveSettings }: Set
         });
         storageUtils.saveBooks(mergedBooks);
         
-        // Merge settings (keep existing API keys if they exist, add new ones)
         const mergedSettings = { ...importPreview.settings };
         Object.keys(existingSettings).forEach(key => {
           if (existingSettings[key as keyof APISettings] && 
@@ -151,12 +151,19 @@ export function SettingsModal({ isOpen, onClose, settings, onSaveSettings }: Set
   if (!isOpen) return null;
 
   const TabButton = ({ id, label, Icon }: { id: ActiveTab; label: string; Icon: React.ElementType; }) => (
-    <button onClick={() => setActiveTab(id)} className={`flex-1 flex items-center justify-center gap-2 p-3 text-sm font-semibold transition-colors rounded-lg ${activeTab === id ? 'bg-white/10 text-white' : 'text-gray-400 hover:bg-white/5 hover:text-white'}`}>
-      <Icon size={16} />{label}
+    <button 
+      onClick={() => setActiveTab(id)} 
+      className={`flex-1 flex items-center justify-center gap-2 p-3 text-sm font-semibold transition-colors rounded-lg ${
+        activeTab === id 
+          ? 'bg-white/10 text-white' 
+          : 'text-gray-400 hover:bg-white/5 hover:text-white'
+      }`}
+    >
+      <Icon size={16} />
+      {label}
     </button>
   );
 
-  // API configuration with proper URLs and names
   const apiConfigs = [
     {
       id: 'googleApiKey' as keyof APISettings,
@@ -182,18 +189,27 @@ export function SettingsModal({ isOpen, onClose, settings, onSaveSettings }: Set
     <>
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in" onClick={onClose}>
         <div className="relative w-full max-w-lg bg-[var(--color-sidebar)] border border-[var(--color-border)] rounded-2xl shadow-2xl flex flex-col max-h-[90vh] animate-fade-in-up" onClick={e => e.stopPropagation()}>
+          {/* Header */}
           <div className="p-5 flex items-center justify-between border-b border-[var(--color-border)]">
-            <div className="flex items-center gap-3"><Settings size={20} /><h2 className="text-xl font-bold">Settings</h2></div>
-            <button onClick={onClose} className="p-2 rounded-full hover:bg-white/10 transition-colors"><X size={18} /></button>
+            <div className="flex items-center gap-3">
+              <Settings size={20} />
+              <h2 className="text-xl font-bold">Settings</h2>
+            </div>
+            <button onClick={onClose} className="p-2 rounded-full hover:bg-white/10 transition-colors">
+              <X size={18} />
+            </button>
           </div>
 
+          {/* Tabs */}
           <div className="p-2 grid grid-cols-3 gap-2 border-b border-[var(--color-border)]">
             <TabButton id="keys" label="API Keys" Icon={Shield} />
             <TabButton id="data" label="Data" Icon={Database} />
             <TabButton id="about" label="About" Icon={HelpCircle} />
           </div>
 
+          {/* Content */}
           <div className="p-6 overflow-y-auto min-h-[25rem]">
+            {/* API Keys Tab */}
             {activeTab === 'keys' && (
               <div className="space-y-6 animate-fade-in">
                 <div className="space-y-4">
@@ -207,7 +223,7 @@ export function SettingsModal({ isOpen, onClose, settings, onSaveSettings }: Set
                     </p>
                   </div>
 
-                  {/* Current Model Selection Display */}
+                  {/* Current Model Selection */}
                   <div className="bg-[var(--color-bg)] border border-[var(--color-border)] rounded-lg p-4">
                     <h4 className="font-semibold mb-2 text-white">Current Selection</h4>
                     <div className="text-sm text-gray-300">
@@ -216,6 +232,7 @@ export function SettingsModal({ isOpen, onClose, settings, onSaveSettings }: Set
                     </div>
                   </div>
 
+                  {/* API Key Inputs */}
                   {apiConfigs.map(api => {
                     const hasKey = !!localSettings[api.id];
                     return (
@@ -240,7 +257,14 @@ export function SettingsModal({ isOpen, onClose, settings, onSaveSettings }: Set
                             placeholder={`Enter your ${api.name} API key`} 
                             className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 pl-9 pr-10 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white/20 focus:border-transparent transition-colors" 
                           />
-                          <button type="button" onClick={() => setVisibleApis(p => ({...p, [api.id]: !p[api.id]}))} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition-colors" title="Toggle visibility">{visibleApis[api.id] ? <EyeOff size={16} /> : <Eye size={16} />}</button>
+                          <button 
+                            type="button" 
+                            onClick={() => setVisibleApis(p => ({...p, [api.id]: !p[api.id]}))} 
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition-colors" 
+                            title="Toggle visibility"
+                          >
+                            {visibleApis[api.id] ? <EyeOff size={16} /> : <Eye size={16} />}
+                          </button>
                         </div>
                       </div>
                     );
@@ -249,22 +273,27 @@ export function SettingsModal({ isOpen, onClose, settings, onSaveSettings }: Set
               </div>
             )}
 
+            {/* Data Tab */}
             {activeTab === 'data' && (
               <div className="space-y-6 animate-fade-in">
+                {/* Backup & Restore */}
                 <div>
                   <h3 className="font-semibold mb-2">Backup & Restore</h3>
                   <p className="text-sm text-gray-400 mb-4">Export your books and settings, or import from a backup file.</p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <button onClick={handleExportData} className="btn btn-secondary w-full">
-                      <Download size={16} />Export Data
+                      <Download size={16} />
+                      Export Data
                     </button>
                     <label className="btn btn-secondary w-full cursor-pointer">
-                      <Upload size={16} />Import Data
+                      <Upload size={16} />
+                      Import Data
                       <input type="file" ref={fileInputRef} onChange={handleImportPreview} accept=".json" className="hidden" />
                     </label>
                   </div>
                 </div>
                 
+                {/* Storage Info */}
                 <div className="bg-[var(--color-bg)] border border-[var(--color-border)] rounded-lg p-4">
                   <h4 className="font-semibold mb-2 text-white">Data Storage</h4>
                   <div className="text-sm text-gray-300 space-y-1">
@@ -274,27 +303,34 @@ export function SettingsModal({ isOpen, onClose, settings, onSaveSettings }: Set
                   </div>
                 </div>
 
+                {/* Danger Zone */}
                 <div>
                   <h3 className="font-semibold mb-2 text-red-400">Danger Zone</h3>
                   <p className="text-sm text-gray-400 mb-3">This will permanently delete all your books, settings, and progress.</p>
                   <button onClick={handleClearData} className="w-full btn bg-red-900/20 border border-red-500/30 text-red-400 hover:bg-red-900/40 transition-colors">
-                    <Trash2 size={16} />Clear All Data
+                    <Trash2 size={16} />
+                    Clear All Data
                   </button>
                 </div>
               </div>
             )}
 
+            {/* About Tab */}
             {activeTab === 'about' && (
-               <div className="space-y-8 animate-fade-in text-center flex flex-col items-center justify-center h-full">
+              <div className="space-y-8 animate-fade-in text-center flex flex-col items-center justify-center h-full">
+                {/* Logo and Title */}
                 <div className="space-y-6">
                   <img src="/white-logo.png" alt="Pustakam Logo" className="w-16 h-16 mx-auto" />
                   <div>
                     <h4 className="text-2xl font-bold text-white mb-2">Pustakam</h4>
-                    <p className="text-sm text-gray-400 max-w-xs mx-auto">AI-powered book generation engine that transforms your ideas into comprehensive digital books.</p>
+                    <p className="text-sm text-gray-400 max-w-xs mx-auto">
+                      AI-powered book generation engine that transforms your ideas into comprehensive digital books.
+                    </p>
                   </div>
                 </div>
 
-                 <div className="grid grid-cols-2 gap-6 w-full max-w-sm">
+                {/* Feature Grid */}
+                <div className="grid grid-cols-2 gap-6 w-full max-w-sm">
                   <div className="text-center p-4 bg-white/5 rounded-lg">
                     <Zap className="w-6 h-6 text-blue-400 mx-auto mb-2" />
                     <h5 className="font-semibold text-sm text-white mb-1">AI-Powered</h5>
@@ -317,13 +353,33 @@ export function SettingsModal({ isOpen, onClose, settings, onSaveSettings }: Set
                   </div>
                 </div>
 
+                {/* Disclaimer Button */}
+                <div className="w-full max-w-sm space-y-3">
+                  <button
+                    onClick={() => setShowDisclaimer(true)}
+                    className="w-full btn bg-red-500/20 border border-red-500/30 text-red-300 hover:bg-red-500/30 transition-all flex items-center justify-center gap-2 py-3"
+                  >
+                    <AlertTriangle className="w-5 h-5" />
+                    <span className="font-semibold">View Important Disclaimer</span>
+                  </button>
+                  <p className="text-xs text-gray-500 leading-relaxed">
+                    Important information about AI-generated content, limitations, and user responsibilities
+                  </p>
+                </div>
+
+                {/* Version and Creator */}
                 <div className="space-y-4">
                   <div className="text-xs text-gray-500">
                     Version 1.0.0 • Built with React & TypeScript
                   </div>
                   <div className="flex items-center justify-center gap-2 text-gray-400 hover:text-white transition-colors">
                     <User size={14} />
-                    <a href="https://linkedin.com/in/tanmay-kalbande" target="_blank" rel="noopener noreferrer" className="font-semibold text-sm">
+                    <a 
+                      href="https://linkedin.com/in/tanmay-kalbande" 
+                      target="_blank" 
+                      rel="noopener noreferrer" 
+                      className="font-semibold text-sm"
+                    >
                       by Tanmay Kalbande
                     </a>
                   </div>
@@ -332,6 +388,7 @@ export function SettingsModal({ isOpen, onClose, settings, onSaveSettings }: Set
             )}
           </div>
 
+          {/* Footer */}
           <div className="flex justify-end gap-3 p-4 border-t border-[var(--color-border)] bg-[var(--color-bg)]/50">
             <button onClick={onClose} className="btn btn-secondary">Cancel</button>
             <button onClick={handleSave} className="btn btn-primary">Save Changes</button>
@@ -404,6 +461,14 @@ export function SettingsModal({ isOpen, onClose, settings, onSaveSettings }: Set
             </div>
           </div>
         </div>
+      )}
+
+      {/* Disclaimer Modal */}
+      {showDisclaimer && (
+        <DisclaimerPage 
+          isOpen={showDisclaimer} 
+          onClose={() => setShowDisclaimer(false)} 
+        />
       )}
     </>
   );
