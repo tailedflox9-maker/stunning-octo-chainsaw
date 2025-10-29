@@ -100,13 +100,13 @@ async function loadPdfMake() {
     console.log('✓ VFS loaded with', vfsKeys.length, 'files');
 
     // Check which fonts are actually available in VFS
-    const hasAptosMono = vfs['Aptos-Mono.ttf'] && vfs['Aptos-Mono-Bold.ttf'];
-    const hasRoboto = vfs['Roboto-Regular.ttf'] && vfs['Roboto-Medium.ttf'];
+    const aptosMonoInVfs = vfs['Aptos-Mono.ttf'] && vfs['Aptos-Mono-Bold.ttf'];
+    const robotoInVfs = vfs['Roboto-Regular.ttf'] && vfs['Roboto-Medium.ttf'];
     
-    console.log('🔍 Available fonts - Aptos-Mono:', hasAptosMono, 'Roboto:', hasRoboto);
+    console.log('🔍 Available fonts - Aptos-Mono:', aptosMonoInVfs, 'Roboto:', robotoInVfs);
 
     // Configure fonts based on what's actually available
-    if (hasAptosMono) {
+    if (aptosMonoInVfs) {
       console.log('✓ Configuring Aptos-Mono fonts');
       pdfMake.fonts = {
         'Aptos-Mono': {
