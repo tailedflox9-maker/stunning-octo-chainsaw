@@ -1,4 +1,4 @@
-// src/services/pdfService.ts - PROFESSIONAL ACADEMIC VERSION WITH ENHANCED JUSTIFICATION
+// src/services/pdfService.ts - ENHANCED VERSION WITH BEAUTIFUL CODE BLOCKS
 import { BookProject } from '../types';
 let isGenerating = false;
 let pdfMake: any = null;
@@ -9,14 +9,12 @@ async function loadPdfMake() {
     return pdfMake;
   }
   try {
-    console.log('[DEBUG] Starting pdfMake load...');
     const [pdfMakeModule, pdfFontsModule] = await Promise.all([
       import('pdfmake/build/pdfmake'),
       import('pdfmake/build/vfs_fonts')
     ]);
     pdfMake = pdfMakeModule.default || pdfMakeModule;
     const fonts = pdfFontsModule.default || pdfFontsModule;
-    console.log('[DEBUG] Modules loaded');
 
     // VFS Detection
     let vfs = null;
@@ -58,7 +56,6 @@ async function loadPdfMake() {
       throw new Error('FONT_VFS_NOT_FOUND');
     }
     pdfMake.vfs = vfs;
-    console.log('[DEBUG] VFS detected, keys:', Object.keys(vfs).length);
 
     // Auto-load Aptos-Mono fonts from /fonts/
     const basePath = '/fonts/';
@@ -67,8 +64,7 @@ async function loadPdfMake() {
       { name: 'Aptos-Mono-Bold.ttf', key: 'Aptos-Mono-Bold.ttf' },
       { name: 'Aptos-Mono-Bold-Italic.ttf', key: 'Aptos-Mono-Bold-Italic.ttf' }
     ];
-    let loadedFonts = 0;
-    console.log('[DEBUG] Attempting to load Aptos-Mono fonts...');
+    
     for (const font of aptosMonoFonts) {
       try {
         const response = await fetch(`${basePath}${font.name}`);
@@ -81,33 +77,24 @@ async function loadPdfMake() {
             )
           );
           pdfMake.vfs[font.key] = base64;
-          loadedFonts++;
-          console.log(`[DEBUG] ✓ Loaded ${font.name} (${Math.round(base64.length / 1024)}KB)`);
-        } else {
-          console.log(`[DEBUG] ✗ ${font.name} not found (${response.status})`);
         }
       } catch (error) {
-        console.log(`[DEBUG] ✗ Failed to load ${font.name}:`, error);
+        // Silent fail - will use fallback font
       }
     }
+    
     const vfsKeys = Object.keys(vfs);
     if (vfsKeys.length === 0) {
       throw new Error('VFS_EMPTY');
     }
 
-    // Check which fonts are actually available in VFS
+    // Check which fonts are available
     const aptosMonoInVfs = !!vfs['Aptos-Mono.ttf'] && !!vfs['Aptos-Mono-Bold.ttf'];
-    const robotoInVfs = !!vfs['Roboto-Regular.ttf'] && !!vfs['Roboto-Medium.ttf'];
     
-    console.log('[DEBUG] Font availability - Aptos-Mono:', aptosMonoInVfs, 'Roboto:', robotoInVfs);
-    console.log('[DEBUG] VFS keys:', Object.keys(vfs).filter(k => k.includes('Aptos') || k.includes('Roboto')));
-
-    // Configure fonts based on what's actually available
+    // Configure fonts
     if (aptosMonoInVfs) {
       const hasBoldItalic = !!vfs['Aptos-Mono-Bold-Italic.ttf'];
-      console.log('[DEBUG] Bold-Italic available:', hasBoldItalic);
       
-      // Verify the font data is actually loaded (not just true/false)
       const isValidFont = (key: string) => {
         const data = vfs[key];
         return data && typeof data === 'string' && data.length > 1000;
@@ -122,9 +109,7 @@ async function loadPdfMake() {
             bolditalics: (hasBoldItalic && isValidFont('Aptos-Mono-Bold-Italic.ttf')) ? 'Aptos-Mono-Bold-Italic.ttf' : 'Aptos-Mono-Bold.ttf'
           }
         };
-        console.log('[DEBUG] Using Aptos-Mono fonts');
       } else {
-        console.log('[DEBUG] Aptos-Mono data invalid, falling back to Roboto');
         pdfMake.fonts = {
           Roboto: {
             normal: 'Roboto-Regular.ttf',
@@ -143,13 +128,12 @@ async function loadPdfMake() {
           bolditalics: 'Roboto-MediumItalic.ttf'
         }
       };
-      console.log('[DEBUG] Using Roboto fonts (fallback)');
     }
+    
     fontsLoaded = true;
-    console.log('[DEBUG] pdfMake loaded successfully');
     return pdfMake;
   } catch (error) {
-    console.error('[DEBUG] pdfMake loading FAILED:', error);
+    console.error('[PDF] Loading failed:', error);
     fontsLoaded = false;
     pdfMake = null;
     throw error;
@@ -184,6 +168,7 @@ interface PDFContent {
   width?: string | number;
   preserveLeadingSpaces?: boolean;
   background?: string;
+  font?: string;
 }
 
 class ProfessionalPdfGenerator {
@@ -259,14 +244,15 @@ class ProfessionalPdfGenerator {
         alignment: 'left'
       },
       codeBlock: {
-        fontSize: 9.5,
-        margin: [12, 10, 12, 10],
-        color: '#2d3748',
-        background: '#f7fafc',
-        fillColor: '#f7fafc',
+        fontSize: 9,
+        margin: [0, 12, 0, 12],
+        color: '#1e293b',
+        background: '#f1f5f9',
+        fillColor: '#f1f5f9',
         preserveLeadingSpaces: true,
-        lineHeight: 1.4,
-        alignment: 'left'
+        lineHeight: 1.5,
+        alignment: 'left',
+        characterSpacing: -0.5
       },
       blockquote: {
         fontSize: 10.5,
@@ -399,12 +385,38 @@ class ProfessionalPdfGenerator {
 
     const flushCodeBlock = () => {
       if (codeBuffer.length > 0 && !skipToC) {
+        const lineCount = codeBuffer.length;
+        const blockHeight = (lineCount * 13.5) + 24; // Line height + padding
+        
+        // Styled container with border
         content.push({
-          text: codeBuffer.join('\n'),
-          style: 'codeBlock',
-          margin: [12, 10, 12, 10],
-          fillColor: '#f7fafc',
-          alignment: 'left'
+          stack: [
+            {
+              canvas: [{
+                type: 'rect',
+                x: 0,
+                y: 0,
+                w: 515, // Full content width
+                h: blockHeight,
+                r: 6, // Rounded corners
+                lineWidth: 1.5,
+                lineColor: '#cbd5e1',
+                color: '#f8fafc' // Slightly lighter background
+              }],
+              margin: [0, 12, 0, 0]
+            },
+            {
+              text: codeBuffer.join('\n'),
+              font: this.fontFamily,
+              fontSize: 9,
+              color: '#0f172a', // Darker for better contrast
+              preserveLeadingSpaces: true,
+              lineHeight: 1.5,
+              margin: [12, -(blockHeight - 12), 12, 0],
+              characterSpacing: -0.3
+            }
+          ],
+          margin: [0, 0, 0, 12]
         });
         codeBuffer = [];
       }
@@ -476,7 +488,7 @@ class ProfessionalPdfGenerator {
           canvas: [{
             type: 'line',
             x1: 0, y1: 0,
-            x2: 465, y2: 0,
+            x2: 515, y2: 0,
             lineWidth: 1.5,
             lineColor: '#cbd5e1'
           }],
@@ -539,7 +551,7 @@ class ProfessionalPdfGenerator {
               canvas: [{
                 type: 'line',
                 x1: 0, y1: 0,
-                x2: 465, y2: 0,
+                x2: 515, y2: 0,
                 lineWidth: 2,
                 lineColor: '#d1d5db'
               }],
@@ -752,7 +764,7 @@ class ProfessionalPdfGenerator {
       {
         text: `This comprehensive ${metadata.modules}-chapter document contains ${metadata.words.toLocaleString()} words of AI-generated content. Each section has been carefully structured to provide in-depth coverage of the topic with clear explanations and practical insights.`,
         fontSize: 10,
-lineHeight: 1.6,
+        lineHeight: 1.6,
         alignment: 'justify',
         color: '#1a1a1a',
         margin: [0, 0, 0, 30]
@@ -902,7 +914,7 @@ lineHeight: 1.6,
         alignment: 'justify'
       },
       pageSize: 'A4',
-      pageMargins: [65, 75, 65, 70],
+      pageMargins: [50, 75, 50, 70], // ✅ Reduced from [65, 75, 65, 70]
       header: (currentPage: number) => {
         if (currentPage <= 1) return {};
         return {
@@ -922,7 +934,7 @@ lineHeight: 1.6,
               width: 'auto'
             }
           ],
-          margin: [65, 22, 65, 0]
+          margin: [50, 22, 50, 0] // ✅ Updated to match new margins
         };
       },
       footer: (currentPage: number) => {
@@ -933,7 +945,7 @@ lineHeight: 1.6,
               text: 'Pustakam Injin',
               fontSize: 7,
               color: '#999999',
-              margin: [65, 0, 0, 0],
+              margin: [50, 0, 0, 0], // ✅ Updated to match new margins
               width: '*'
             },
             {
@@ -941,7 +953,7 @@ lineHeight: 1.6,
               fontSize: 7,
               color: '#999999',
               alignment: 'right',
-              margin: [0, 0, 65, 0],
+              margin: [0, 0, 50, 0], // ✅ Updated to match new margins
               width: '*'
             }
           ],
@@ -988,12 +1000,12 @@ lineHeight: 1.6,
             </div>
             <div class="space-y-3 mb-6">
               <p class="text-sm text-gray-300 leading-relaxed">
-                Your document has been formatted with professional typography and fully justified text alignment.
+                Your document has been formatted with professional typography, justified text, and enhanced code blocks.
               </p>
               <ul class="space-y-2 text-sm text-gray-400">
-                <li class="flex items-start gap-2"><span class="text-green-400 shrink-0">✓</span><span>Justified paragraph alignment</span></li>
-                <li class="flex items-start gap-2"><span class="text-green-400 shrink-0">✓</span><span>Professional cover page design</span></li>
-                <li class="flex items-start gap-2"><span class="text-green-400 shrink-0">✓</span><span>Enhanced line spacing (1.6)</span></li>
+                <li class="flex items-start gap-2"><span class="text-green-400 shrink-0">✓</span><span>Fully justified paragraph alignment</span></li>
+                <li class="flex items-start gap-2"><span class="text-green-400 shrink-0">✓</span><span>Beautiful bordered code blocks</span></li>
+                <li class="flex items-start gap-2"><span class="text-green-400 shrink-0">✓</span><span>Optimized margins for more content</span></li>
                 <li class="flex items-start gap-2"><span class="text-green-400 shrink-0">✓</span><span>${this.fontFamily} font for consistent style</span></li>
                 ${hasEmojis ? '<li class="flex items-start gap-2"><span class="text-yellow-400 shrink-0">•</span><span>Emojis removed for compatibility</span></li>' : ''}
                 ${hasComplexFormatting ? '<li class="flex items-start gap-2"><span class="text-yellow-400 shrink-0">•</span><span>Advanced formatting simplified</span></li>' : ''}
@@ -1050,14 +1062,13 @@ export const pdfService = {
       const generator = new ProfessionalPdfGenerator();
       await generator.generate(project, onProgress);
     } catch (error: any) {
-      console.error('[DEBUG] PDF generation error details:', error);
+      console.error('[PDF] Generation error:', error);
       alert('PDF generation failed. Please try:\n\n' +
             '1. Hard refresh the page (Ctrl+Shift+R)\n' +
             '2. Clear browser cache\n' +
-            '3. Check console for font loading errors\n' +
+            '3. Check console for errors\n' +
             '4. Download Markdown (.md) version instead\n\n' +
-            'Error: ' + (error?.message || 'Unknown error') + '\n\n' +
-            'The .md file contains complete content.');
+            'Error: ' + (error?.message || 'Unknown error'));
       onProgress(0);
     } finally {
       isGenerating = false;
