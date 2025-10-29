@@ -1836,51 +1836,89 @@ export function BookView({
                     </div>
                   )}
 
-                  {/* Book Completed */}
-                  {currentBook.status === 'completed' && (
-                    <div className="bg-gradient-to-br from-emerald-500/10 to-green-500/5 border border-emerald-500/30 rounded-xl p-8 text-center animate-fade-in-up">
-                      <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500 to-green-500 flex items-center justify-center mx-auto mb-4 shadow-2xl shadow-emerald-500/50">
-                        <CheckCircle2 className="w-8 h-8 text-white" />
-                      </div>
-                      <h2 className="text-2xl font-bold mb-2">Book Generation Complete!</h2>
-                      <p className="text-zinc-400 mb-6">
-                        Your book "{currentBook.title}" is ready.
-                      </p>
-                      <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                        <button
-                          onClick={() => setDetailTab('read')}
-                          className="btn btn-secondary"
-                        >
-                          <Eye className="w-4 h-4" />
-                          Read Book
-                        </button>
-                        <button
-                          onClick={() => bookService.downloadAsMarkdown(currentBook)}
-                          className="btn btn-secondary"
-                        >
-                          <Download className="w-4 h-4" />
-                          Download .MD
-                        </button>
-                        <button
-                          onClick={handleDownloadPdf}
-                          disabled={pdfProgress > 0}
-                          className="btn bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 rounded-xl text-white font-semibold flex items-center gap-2 shadow-lg shadow-blue-500/30 transition-all disabled:opacity-70 disabled:cursor-wait"
-                        >
-                          {pdfProgress > 0 ? (
-                            <>
-                              <Loader2 className="w-4 h-4 animate-spin" />
-                              {`Generating PDF (${pdfProgress}%)`}
-                            </>
-                          ) : (
-                            <>
-                              <Download className="w-4 h-4" />
-                              Download PDF
-                            </>
-                          )}
-                        </button>
-                      </div>
-                    </div>
-                  )}
+{/* Book Completed */}
+{currentBook.status === 'completed' && (
+  <div className="space-y-6">
+    {/* Completion Header */}
+    <div className="bg-[var(--color-card)] border border-[var(--color-border)] rounded-xl p-6">
+      <div className="flex items-center gap-4 mb-4">
+        <div className="w-12 h-12 rounded-lg bg-green-500/10 flex items-center justify-center">
+          <CheckCircle2 className="w-6 h-6 text-green-400" />
+        </div>
+        <div>
+          <h3 className="text-lg font-semibold text-white">Generation Complete</h3>
+          <p className="text-sm text-gray-400">
+            Your book is ready to read and download
+          </p>
+        </div>
+      </div>
+      {/* Quick Actions */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <button
+          onClick={() => setDetailTab('read')}
+          className="btn btn-primary justify-center"
+        >
+          <Eye className="w-4 h-4" />
+          Read Book
+        </button>
+        <button
+          onClick={() => bookService.downloadAsMarkdown(currentBook)}
+          className="btn btn-secondary justify-center"
+        >
+          <Download className="w-4 h-4" />
+          Download .MD
+        </button>
+        <button
+          onClick={handleDownloadPdf}
+          disabled={pdfProgress > 0}
+          className="btn bg-blue-600 hover:bg-blue-700 disabled:bg-blue-600/50 disabled:cursor-not-allowed rounded-xl text-white font-semibold flex items-center justify-center gap-2 transition-all"
+        >
+          {pdfProgress > 0 ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <span className="hidden sm:inline">PDF ({pdfProgress}%)</span>
+              <span className="sm:hidden">{pdfProgress}%</span>
+            </>
+          ) : (
+            <>
+              <Download className="w-4 h-4" />
+              <span className="hidden sm:inline">Download PDF</span>
+              <span className="sm:hidden">PDF</span>
+            </>
+          )}
+        </button>
+      </div>
+    </div>
+    {/* Book Stats */}
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <div className="bg-[var(--color-card)] border border-[var(--color-border)] rounded-lg p-4">
+        <div className="text-2xl font-bold text-white mb-1">
+          {currentBook.modules.length}
+        </div>
+        <div className="text-xs text-gray-400">Chapters</div>
+      </div>
+      <div className="bg-[var(--color-card)] border border-[var(--color-border)] rounded-lg p-4">
+        <div className="text-2xl font-bold text-white mb-1">
+          {(currentBook.totalWords || 0).toLocaleString()}
+        </div>
+        <div className="text-xs text-gray-400">Words</div>
+      </div>
+      <div className="bg-[var(--color-card)] border border-[var(--color-border)] rounded-lg p-4">
+        <div className="text-2xl font-bold text-white mb-1">
+          {currentBook.roadmap?.estimatedReadingTime || 'N/A'}
+        </div>
+        <div className="text-xs text-gray-400">Est. Reading</div>
+      </div>
+      <div className="bg-[var(--color-card)] border border-[var(--color-border)] rounded-lg p-4">
+        <div className="text-2xl font-bold text-white mb-1 capitalize">
+          {currentBook.roadmap?.difficultyLevel || 'N/A'}
+        </div>
+        <div className="text-xs text-gray-400">Level</div>
+      </div>
+    </div>
+  </div>
+)}
+
 
                   {/* Assembling Status */}
                   {currentBook.status === 'assembling' && (
