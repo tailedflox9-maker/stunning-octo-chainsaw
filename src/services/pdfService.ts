@@ -15,12 +15,14 @@ async function loadPdfMake() {
     return pdfMake;
   }
   try {
+    console.log('[DEBUG] Starting pdfMake load...');
     const [pdfMakeModule, pdfFontsModule] = await Promise.all([
       import('pdfmake/build/pdfmake'),
       import('pdfmake/build/vfs_fonts')
     ]);
     pdfMake = pdfMakeModule.default || pdfMakeModule;
     const fonts = pdfFontsModule.default || pdfFontsModule;
+    console.log('[DEBUG] Modules loaded');
 
     // VFS Detection
     let vfs = null;
@@ -62,6 +64,7 @@ async function loadPdfMake() {
       throw new Error('FONT_VFS_NOT_FOUND');
     }
     pdfMake.vfs = vfs;
+    console.log('[DEBUG] VFS detected, keys:', Object.keys(vfs).length);
 
     // Auto-load Aptos-Mono fonts from /fonts/
     const basePath = '/fonts/';
@@ -71,6 +74,7 @@ async function loadPdfMake() {
       { name: 'Aptos-Mono-Bold-Italic.ttf', key: 'Aptos-Mono-Bold-Italic.ttf' }
     ];
     let hasAptosMono = false;
+    console.log('[DEBUG] Attempting to load Aptos-Mono fonts...');
     for (const font of aptosMonoFonts) {
       try {
         const response = await fetch(`${basePath}${font.name}`);
@@ -84,9 +88,12 @@ async function loadPdfMake() {
           );
           pdfMake.vfs[font.key] = base64;
           hasAptosMono = true;
+          console.log(`[DEBUG] ✓ Loaded ${font.name}`);
+        } else {
+          console.log(`[DEBUG] ✗ ${font.name} not found (${response.status})`);
         }
       } catch (error) {
-        // Silent fail - will use fallback font
+        console.log(`[DEBUG] ✗ Failed to load ${font.name}:`, error);
       }
     }
     const vfsKeys = Object.keys(vfs);
@@ -97,10 +104,13 @@ async function loadPdfMake() {
     // Check which fonts are actually available in VFS
     const aptosMonoInVfs = vfs['Aptos-Mono.ttf'] && vfs['Aptos-Mono-Bold.ttf'];
     const robotoInVfs = vfs['Roboto-Regular.ttf'] && vfs['Roboto-Medium.ttf'];
+    
+    console.log('[DEBUG] Font availability - Aptos-Mono:', aptosMonoInVfs, 'Roboto:', robotoInVfs);
 
     // Configure fonts based on what's actually available
     if (aptosMonoInVfs) {
       const hasBoldItalic = vfs['Aptos-Mono-Bold-Italic.ttf'];
+      console.log('[DEBUG] Bold-Italic available:', hasBoldItalic);
       pdfMake.fonts = {
         'Aptos-Mono': {
           normal: 'Aptos-Mono.ttf',
@@ -109,6 +119,7 @@ async function loadPdfMake() {
           bolditalics: hasBoldItalic ? 'Aptos-Mono-Bold-Italic.ttf' : 'Aptos-Mono-Bold.ttf'
         }
       };
+      console.log('[DEBUG] Using Aptos-Mono fonts');
     } else {
       pdfMake.fonts = {
         Roboto: {
@@ -118,10 +129,13 @@ async function loadPdfMake() {
           bolditalics: 'Roboto-MediumItalic.ttf'
         }
       };
+      console.log('[DEBUG] Using Roboto fonts (fallback)');
     }
     fontsLoaded = true;
+    console.log('[DEBUG] pdfMake loaded successfully');
     return pdfMake;
   } catch (error) {
+    console.error('[DEBUG] pdfMake loading FAILED:', error);
     fontsLoaded = false;
     pdfMake = null;
     throw error;
@@ -983,11 +997,13 @@ export const pdfService = {
       const generator = new ProfessionalPdfGenerator();
       await generator.generate(project, onProgress);
     } catch (error: any) {
+      console.error('[DEBUG] PDF generation error details:', error);
       alert('PDF generation failed. Please try:\n\n' +
             '1. Hard refresh the page (Ctrl+Shift+R)\n' +
             '2. Clear browser cache\n' +
             '3. Check console for font loading errors\n' +
             '4. Download Markdown (.md) version instead\n\n' +
+            'Error: ' + (error?.message || 'Unknown error') + '\n\n' +
             'The .md file contains complete content.');
       onProgress(0);
     } finally {
