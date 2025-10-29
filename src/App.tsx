@@ -41,7 +41,7 @@ function App() {
   const [books, setBooks] = useState<BookProject[]>(() => storageUtils.getBooks());
   const [settings, setSettings] = useState<APISettings>(() => storageUtils.getSettings());
   const [currentBookId, setCurrentBookId] = useState<string | null>(null);
-  const [sidebarFolded, setSidebarFolded] = useState(() => 
+  const [sidebarFolded, setSidebarFolded] = useState(() =>
     JSON.parse(localStorage.getItem('pustakam-sidebar-folded') || 'false')
   );
   const [view, setView] = useState<AppView>('list');
@@ -57,18 +57,15 @@ function App() {
     totalWordsGenerated: 0,
   });
   const [generationStartTime, setGenerationStartTime] = useState<Date>(new Date());
-  
+
   // ✅ NEW: Model switch modal state
   const [showModelSwitch, setShowModelSwitch] = useState(false);
   const [modelSwitchOptions, setModelSwitchOptions] = useState<Array<{provider: ModelProvider; model: string; name: string}>>([]);
-
   const { isInstallable, isInstalled, installApp, dismissInstallPrompt } = usePWA();
-
-  const currentBook = useMemo(() => 
+  const currentBook = useMemo(() =>
     currentBookId ? books.find(b => b.id === currentBookId) : null,
     [currentBookId, books]
   );
-
   const isGenerating = useMemo(() => {
     if (!currentBook) return false;
     return (
@@ -76,11 +73,9 @@ function App() {
       generationStatus.status === 'generating'
     );
   }, [currentBook?.status, generationStatus.status]);
-
-  const totalWordsGenerated = currentBook?.modules.reduce((sum, m) => 
+  const totalWordsGenerated = currentBook?.modules.reduce((sum, m) =>
     sum + (m.status === 'completed' ? m.wordCount : 0), 0
   ) || 0;
-
   const generationStats = useGenerationStats(
     currentBook?.roadmap?.totalModules || 0,
     currentBook?.modules.filter(m => m.status === 'completed').length || 0,
@@ -88,6 +83,28 @@ function App() {
     generationStartTime,
     generationStatus.totalWordsGenerated || totalWordsGenerated
   );
+
+  // ✅ NEW: Add this function to clear pause flags for completed books
+  const clearPauseFlagIfCompleted = (book: BookProject) => {
+    if (book.status === 'completed') {
+      try {
+        localStorage.removeItem(`pause_flag_${book.id}`);
+        console.log('✓ Cleared pause flag for completed book:', book.id);
+      } catch (error) {
+        console.warn('Failed to clear pause flag:', error);
+      }
+    }
+  };
+
+  // ✅ NEW: Add this useEffect to clean up pause flags on mount
+  useEffect(() => {
+    // Clean up pause flags for all completed books on app load
+    books.forEach(book => {
+      if (book.status === 'completed') {
+        clearPauseFlagIfCompleted(book);
+      }
+    });
+  }, []); // Run only once on mount
 
   // ✅ Check for paused state on mount
   useEffect(() => {
@@ -99,7 +116,7 @@ function App() {
           setGenerationStatus({
             status: 'paused',
             totalProgress: 0,
-            totalWordsGenerated: currentBook.modules.reduce((sum, m) => 
+            totalWordsGenerated: currentBook.modules.reduce((sum, m) =>
               sum + (m.status === 'completed' ? m.wordCount : 0), 0
             ),
             logMessage: '⏸ Generation was paused'
@@ -114,9 +131,9 @@ function App() {
       const mobile = window.innerWidth < 768;
       const tablet = window.innerWidth >= 768 && window.innerWidth < 1024;
       const desktop = window.innerWidth >= 1024;
-      
+
       setIsMobile(mobile);
-      
+
       if (desktop) {
         setSidebarOpen(true);
       } else if (mobile || tablet) {
@@ -125,13 +142,11 @@ function App() {
         }
       }
     };
-
     handleResize();
     window.addEventListener('resize', handleResize);
     window.addEventListener('orientationchange', () => {
       setTimeout(handleResize, 100);
     });
-
     return () => {
       window.removeEventListener('resize', handleResize);
       window.removeEventListener('orientationchange', handleResize);
@@ -140,9 +155,9 @@ function App() {
 
   useEffect(() => {
     bookService.updateSettings(settings);
-    
+
     bookService.setProgressCallback(handleBookProgressUpdate);
-    
+
     bookService.setGenerationStatusCallback((bookId, status) => {
       setGenerationStatus(prevStatus => ({
         ...prevStatus,
@@ -152,12 +167,12 @@ function App() {
     });
   }, [settings]);
 
-  useEffect(() => { 
-    storageUtils.saveBooks(books); 
+  useEffect(() => {
+    storageUtils.saveBooks(books);
   }, [books]);
 
-  useEffect(() => { 
-    localStorage.setItem('pustakam-sidebar-folded', JSON.stringify(sidebarFolded)); 
+  useEffect(() => {
+    localStorage.setItem('pustakam-sidebar-folded', JSON.stringify(sidebarFolded));
   }, [sidebarFolded]);
 
   useEffect(() => {
@@ -167,21 +182,19 @@ function App() {
   }, [currentBookId]);
 
   useEffect(() => {
-    const handleOnline = () => { 
-      setIsOnline(true); 
-      setShowOfflineMessage(false); 
+    const handleOnline = () => {
+      setIsOnline(true);
+      setShowOfflineMessage(false);
     };
-
     const handleOffline = () => {
       setIsOnline(false);
       setShowOfflineMessage(true);
       const timeout = isMobile ? 7000 : 5000;
       setTimeout(() => setShowOfflineMessage(false), timeout);
     };
-
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
-    
+
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
@@ -194,18 +207,17 @@ function App() {
     } else {
       document.body.style.overflow = 'unset';
     }
-
     return () => {
       document.body.style.overflow = 'unset';
     };
   }, [isMobile, sidebarOpen]);
 
   const hasApiKey = !!(settings.googleApiKey || settings.mistralApiKey || settings.zhipuApiKey);
-  
+
   // ✅ NEW: Get alternative AI models
   const getAlternativeModels = () => {
     const alternatives: Array<{provider: ModelProvider; model: string; name: string}> = [];
-    
+
     if (settings.googleApiKey && settings.selectedProvider !== 'google') {
       alternatives.push({
         provider: 'google',
@@ -213,7 +225,7 @@ function App() {
         name: 'Google Gemini 2.5 Flash'
       });
     }
-    
+
     if (settings.mistralApiKey && settings.selectedProvider !== 'mistral') {
       alternatives.push({
         provider: 'mistral',
@@ -221,7 +233,7 @@ function App() {
         name: 'Mistral Small'
       });
     }
-    
+
     if (settings.zhipuApiKey && settings.selectedProvider !== 'zhipu') {
       alternatives.push({
         provider: 'zhipu',
@@ -229,7 +241,7 @@ function App() {
         name: 'GLM 4.5 Flash'
       });
     }
-    
+
     return alternatives;
   };
 
@@ -244,14 +256,14 @@ function App() {
     const newSettings = { ...settings, selectedProvider: provider, selectedModel: model };
     setSettings(newSettings);
     storageUtils.saveSettings(newSettings);
-    
+
     setShowModelSwitch(false);
-    
+
     setTimeout(() => {
       if (currentBook) {
         const modelName = modelSwitchOptions.find(m => m.provider === provider)?.name;
         alert(`✅ Switched to ${modelName}\n\nClick Resume to continue generation with the new model.`);
-        
+
         setGenerationStatus(prev => ({
           ...prev,
           status: 'paused',
@@ -264,25 +276,25 @@ function App() {
   // ✅ NEW: Handle retry decision from user
   const handleRetryDecision = async (decision: 'retry' | 'switch' | 'skip') => {
     if (!currentBook) return;
-    
+
     if (decision === 'retry') {
       // User wants to retry with same model
       bookService.setRetryDecision(currentBook.id, 'retry');
-      
+
     } else if (decision === 'switch') {
       // User wants to switch model
       bookService.setRetryDecision(currentBook.id, 'switch');
-      
+
       const alternatives = getAlternativeModels();
-      
+
       if (alternatives.length === 0) {
         alert('No alternative AI models available.\n\nPlease configure additional API keys in Settings.');
         setSettingsOpen(true);
         return;
       }
-      
+
       showModelSwitchModal(alternatives);
-      
+
     } else if (decision === 'skip') {
       // User wants to skip this module
       const confirmed = window.confirm(
@@ -292,7 +304,7 @@ function App() {
         '• Generation will continue with the next module\n\n' +
         'Are you sure?'
       );
-      
+
       if (confirmed) {
         bookService.setRetryDecision(currentBook.id, 'skip');
       }
@@ -303,22 +315,34 @@ function App() {
     setCurrentBookId(id);
     if (id) {
       setView('detail');
-      
+
       const book = books.find(b => b.id === id);
-      if (book && book.status === 'generating_content') {
-        const checkpoint = bookService.getCheckpointInfo(id);
-        if (checkpoint && checkpoint.completed > 0) {
-          const isPaused = bookService.isPaused(id);
-          if (isPaused) {
-            setGenerationStatus({
-              status: 'paused',
-              totalProgress: 0,
-              totalWordsGenerated: book.modules.reduce((sum, m) => 
-                sum + (m.status === 'completed' ? m.wordCount : 0), 0
-              ),
-              logMessage: '⏸ Generation was paused'
-            });
+      if (book) {
+        // ✅ FIXED: Clear pause flag if book is completed
+        clearPauseFlagIfCompleted(book);
+
+        if (book.status === 'generating_content') {
+          const checkpoint = bookService.getCheckpointInfo(id);
+          if (checkpoint && checkpoint.completed > 0) {
+            const isPaused = bookService.isPaused(id);
+            if (isPaused) {
+              setGenerationStatus({
+                status: 'paused',
+                totalProgress: 0,
+                totalWordsGenerated: book.modules.reduce((sum, m) =>
+                  sum + (m.status === 'completed' ? m.wordCount : 0), 0
+                ),
+                logMessage: '⏸ Generation was paused'
+              });
+            }
           }
+        } else if (book.status === 'completed') {
+          // ✅ FIXED: Reset generation status for completed books
+          setGenerationStatus({
+            status: 'idle',
+            totalProgress: 0,
+            totalWordsGenerated: book.modules.reduce((sum, m) => sum + m.wordCount, 0)
+          });
         }
       }
     }
@@ -328,13 +352,13 @@ function App() {
   };
 
   const handleBookProgressUpdate = (bookId: string, updates: Partial<BookProject>) => {
-    setBooks(prev => prev.map(book => 
-      book.id === bookId 
-        ? { ...book, ...updates, updatedAt: new Date() } 
+    setBooks(prev => prev.map(book =>
+      book.id === bookId
+        ? { ...book, ...updates, updatedAt: new Date() }
         : book
     ));
   };
-  
+
   const handleCreateBookRoadmap = async (session: BookSession): Promise<void> => {
     if (!hasApiKey) {
       alert('Please configure an API key in Settings first.');
@@ -354,28 +378,26 @@ function App() {
       category: 'general',
     };
     setBooks(prev => [newBook, ...prev]);
-    
+
     try {
       await bookService.generateRoadmap(session, newBook.id);
-      handleSelectBook(newBook.id); 
+      handleSelectBook(newBook.id);
     } catch (error) {
       console.error("Roadmap generation failed:", error);
-      handleBookProgressUpdate(newBook.id, { 
-        status: 'error', 
-        error: 'Failed to generate roadmap. Please check your internet connection, API key, and selected model.' 
+      handleBookProgressUpdate(newBook.id, {
+        status: 'error',
+        error: 'Failed to generate roadmap. Please check your internet connection, API key, and selected model.'
       });
     }
   };
-  
+
   const handleGenerateAllModules = async (book: BookProject, session: BookSession): Promise<void> => {
     if (!book.roadmap || !isOnline) {
       alert('This feature requires an internet connection.');
       return;
     }
-
     const hasCheckpoint = bookService.hasCheckpoint(book.id);
     const checkpointInfo = bookService.getCheckpointInfo(book.id);
-
     if (hasCheckpoint && checkpointInfo && checkpointInfo.completed > 0) {
       const message = `📚 Previous Progress Found\n\n` +
         `Last saved: ${checkpointInfo.lastSaved}\n` +
@@ -384,14 +406,13 @@ function App() {
         `Would you like to:\n\n` +
         `• Click OK to RESUME from checkpoint\n` +
         `• Click Cancel to START FRESH (progress will be lost)`;
-
       const shouldResume = window.confirm(message);
-      
+
       if (!shouldResume) {
         localStorage.removeItem(`checkpoint_${book.id}`);
         localStorage.removeItem(`pause_flag_${book.id}`);
         bookService.resumeGeneration(book.id);
-        handleBookProgressUpdate(book.id, { 
+        handleBookProgressUpdate(book.id, {
           modules: [],
           status: 'generating_content',
           progress: 15
@@ -402,7 +423,6 @@ function App() {
     } else {
       bookService.resumeGeneration(book.id);
     }
-
     const initialWords = book.modules.reduce((sum, m) => sum + (m.status === 'completed' ? m.wordCount : 0), 0);
     setGenerationStartTime(new Date());
     setGenerationStatus({
@@ -411,12 +431,10 @@ function App() {
       totalWordsGenerated: initialWords,
       logMessage: 'Initializing generation engine...'
     });
-
     handleBookProgressUpdate(book.id, { status: 'generating_content' });
-
     try {
       await bookService.generateAllModulesWithRecovery(book, session);
-      
+
       if (!bookService.isPaused(book.id)) {
         setGenerationStatus(prev => ({
           ...prev,
@@ -428,16 +446,16 @@ function App() {
     } catch (error) {
       console.error("Module generation failed:", error);
       const errorMessage = error instanceof Error ? error.message : 'Generation failed';
-      
+
       if (!bookService.isPaused(book.id)) {
         setGenerationStatus(prev => ({
           ...prev,
           status: 'error',
           logMessage: errorMessage
         }));
-        
-        handleBookProgressUpdate(book.id, { 
-          status: 'error', 
+
+        handleBookProgressUpdate(book.id, {
+          status: 'error',
           error: errorMessage
         });
       }
@@ -447,7 +465,7 @@ function App() {
   const handlePauseGeneration = (bookId: string) => {
     console.log('🔴 Pausing generation for book:', bookId);
     bookService.pauseGeneration(bookId);
-    
+
     setGenerationStatus(prev => ({
       ...prev,
       status: 'paused',
@@ -458,25 +476,25 @@ function App() {
   const handleResumeGeneration = async (book: BookProject, session: BookSession) => {
     console.log('▶ Resuming generation for book:', book.id);
     bookService.resumeGeneration(book.id);
-    
+
     setGenerationStartTime(new Date());
-    
-    const initialWords = book.modules.reduce((sum, m) => 
+
+    const initialWords = book.modules.reduce((sum, m) =>
       sum + (m.status === 'completed' ? m.wordCount : 0), 0
     );
-    
+
     setGenerationStatus({
       status: 'generating',
       totalProgress: 0,
       totalWordsGenerated: initialWords,
       logMessage: '▶ Resuming generation from checkpoint...'
     });
-    
+
     handleBookProgressUpdate(book.id, { status: 'generating_content' });
-    
+
     try {
       await bookService.generateAllModulesWithRecovery(book, session);
-      
+
       if (!bookService.isPaused(book.id)) {
         setGenerationStatus(prev => ({
           ...prev,
@@ -488,16 +506,16 @@ function App() {
     } catch (error) {
       console.error("Generation failed:", error);
       const errorMessage = error instanceof Error ? error.message : 'Generation failed';
-      
+
       if (!bookService.isPaused(book.id)) {
         setGenerationStatus(prev => ({
           ...prev,
           status: 'error',
           logMessage: errorMessage
         }));
-        
-        handleBookProgressUpdate(book.id, { 
-          status: 'error', 
+
+        handleBookProgressUpdate(book.id, {
+          status: 'error',
           error: errorMessage
         });
       }
@@ -509,22 +527,18 @@ function App() {
       alert('This feature requires an internet connection.');
       return;
     }
-
     const failedCount = book.modules.filter(m => m.status === 'error').length;
-    
+
     if (failedCount === 0) {
       alert('No failed modules to retry.');
       return;
     }
-
     const shouldRetry = window.confirm(
       `Retry ${failedCount} failed module${failedCount > 1 ? 's' : ''}?\n\n` +
       `This will attempt to regenerate only the modules that failed.\n` +
       `Successfully generated modules will be preserved.`
     );
-
     if (!shouldRetry) return;
-
     const initialWords = book.modules.reduce((sum, m) => sum + (m.status === 'completed' ? m.wordCount : 0), 0);
     setGenerationStartTime(new Date());
     setGenerationStatus({
@@ -533,12 +547,10 @@ function App() {
       totalWordsGenerated: initialWords,
       logMessage: 'Retrying failed modules...'
     });
-
     handleBookProgressUpdate(book.id, { status: 'generating_content' });
-
     try {
       await bookService.retryFailedModules(book, session);
-      
+
       setGenerationStatus(prev => ({
         ...prev,
         status: 'completed',
@@ -548,16 +560,16 @@ function App() {
     } catch (error) {
       console.error("Retry failed:", error);
       const errorMessage = error instanceof Error ? error.message : 'Retry failed';
-      
+
       setGenerationStatus(prev => ({
         ...prev,
         status: 'error',
         logMessage: errorMessage
       }));
-      
-      handleBookProgressUpdate(book.id, { 
-        status: 'error', 
-        error: `Retry failed: ${errorMessage}` 
+
+      handleBookProgressUpdate(book.id, {
+        status: 'error',
+        error: `Retry failed: ${errorMessage}`
       });
     }
   };
@@ -576,10 +588,10 @@ function App() {
   };
 
   const handleDeleteBook = (id: string) => {
-    const message = isMobile 
-      ? 'Delete this book? This cannot be undone.' 
+    const message = isMobile
+      ? 'Delete this book? This cannot be undone.'
       : 'Are you sure you want to delete this book? This action cannot be undone.';
-      
+
     if (window.confirm(message)) {
       setBooks(prev => prev.filter(b => b.id !== id));
       if (currentBookId === id) {
@@ -590,11 +602,11 @@ function App() {
       localStorage.removeItem(`pause_flag_${id}`);
     }
   };
-  
-  const handleSaveSettings = (newSettings: APISettings) => { 
-    setSettings(newSettings); 
-    storageUtils.saveSettings(newSettings); 
-    setSettingsOpen(false); 
+
+  const handleSaveSettings = (newSettings: APISettings) => {
+    setSettings(newSettings);
+    storageUtils.saveSettings(newSettings);
+    setSettingsOpen(false);
   };
 
   const handleModelChange = (model: string, provider: ModelProvider) => {
@@ -602,8 +614,8 @@ function App() {
     setSettings(newSettings);
     storageUtils.saveSettings(newSettings);
   };
-  
-  const handleInstallApp = async () => { 
+
+  const handleInstallApp = async () => {
     if (await installApp()) {
       console.log('App installed successfully');
     }
@@ -632,12 +644,11 @@ function App() {
   return (
     <div className="app-container viewport-full prevent-overscroll">
       {sidebarOpen && !window.matchMedia('(min-width: 1024px)').matches && (
-        <div 
+        <div
           className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 lg:hidden transition-opacity duration-300"
           onClick={handleBackdropClick}
         />
       )}
-
       <Sidebar
         books={books}
         currentBookId={currentBookId}
@@ -658,14 +669,13 @@ function App() {
         settings={settings}
         onModelChange={handleModelChange}
       />
-
       <div className="main-content">
         {!sidebarOpen && (
-          <button 
-            onClick={handleMenuClick} 
+          <button
+            onClick={handleMenuClick}
             className={`fixed z-30 btn-secondary shadow-lg transition-all duration-200 lg:hidden ${
-              isMobile 
-                ? 'top-4 left-4 p-3 rounded-xl' 
+              isMobile
+                ? 'top-4 left-4 p-3 rounded-xl'
                 : 'top-4 left-4 p-2.5 rounded-lg'
             }`}
             title="Open sidebar"
@@ -676,11 +686,10 @@ function App() {
             <Menu className={`${isMobile ? 'w-6 h-6' : 'w-5 h-5'}`} />
           </button>
         )}
-
         {showOfflineMessage && (
-          <div 
+          <div
             className={`fixed z-50 content-card animate-fade-in-up ${
-              isMobile 
+              isMobile
                 ? 'top-20 left-4 right-4 p-4'
                 : 'top-4 right-4 p-3'
             }`}
@@ -696,7 +705,6 @@ function App() {
             </div>
           </div>
         )}
-
         <BookView
           books={books}
           currentBookId={currentBookId}
@@ -722,14 +730,12 @@ function App() {
           availableModels={getAlternativeModels()}
         />
       </div>
-
-      <SettingsModal 
-        isOpen={settingsOpen} 
-        onClose={() => setSettingsOpen(false)} 
-        settings={settings} 
+      <SettingsModal
+        isOpen={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        settings={settings}
         onSaveSettings={handleSaveSettings}
       />
-
       {/* ✅ NEW: Model Switch Modal */}
       {showModelSwitch && (
         <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
@@ -738,11 +744,11 @@ function App() {
               <Settings className="w-6 h-6 text-blue-400" />
               <h3 className="text-xl font-semibold text-white">Switch AI Model</h3>
             </div>
-            
+
             <p className="text-sm text-gray-400 mb-6">
               Select a different AI model to continue generation:
             </p>
-            
+
             <div className="space-y-3 mb-6">
               {modelSwitchOptions.map((option) => (
                 <button
@@ -764,7 +770,7 @@ function App() {
                 </button>
               ))}
             </div>
-            
+
             <div className="flex gap-3">
               <button
                 onClick={() => setShowModelSwitch(false)}
@@ -783,21 +789,19 @@ function App() {
                 Configure Keys
               </button>
             </div>
-            
+
             <div className="mt-4 text-xs text-zinc-500 text-center">
               💡 You can add more AI providers in Settings
             </div>
           </div>
         </div>
       )}
-
       {isInstallable && !isInstalled && (
-        <InstallPrompt 
-          onInstall={handleInstallApp} 
+        <InstallPrompt
+          onInstall={handleInstallApp}
           onDismiss={dismissInstallPrompt}
         />
       )}
-
       <Analytics />
     </div>
   );
