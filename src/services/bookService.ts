@@ -1,4 +1,7 @@
-// src/services/bookService.ts - ENHANCED WITH BETTER RETRY LOGIC
+// ============================================================================
+// FILE 1: src/services/bookService.ts (COMPLETE WITH FIX)
+// ============================================================================
+
 import { BookProject, BookRoadmap, BookModule, RoadmapModule, BookSession } from '../types/book';
 import { APISettings, ModelProvider } from '../types';
 import { generateId } from '../utils/helpers';
@@ -261,7 +264,6 @@ class BookGenerationService {
     return Math.min(exponentialDelay + jitter, this.MAX_RETRY_DELAY);
   }
 
-  // ✅ NEW: Get available alternative providers
   private getAlternativeProviders(): Array<{provider: ModelProvider; model: string; name: string}> {
     const alternatives: Array<{provider: ModelProvider; model: string; name: string}> = [];
     
@@ -292,7 +294,6 @@ class BookGenerationService {
     return alternatives;
   }
 
-  // ✅ NEW: Wait for user decision on retry
   private async waitForUserRetryDecision(
     bookId: string,
     moduleTitle: string,
@@ -301,7 +302,6 @@ class BookGenerationService {
   ): Promise<'retry' | 'switch' | 'skip'> {
     const alternatives = this.getAlternativeProviders();
     
-    // Show retry UI
     this.updateGenerationStatus(bookId, {
       status: 'waiting_retry',
       totalProgress: 0,
@@ -315,7 +315,6 @@ class BookGenerationService {
       }
     });
 
-    // Wait for user decision (stored in userRetryDecisions map)
     return new Promise((resolve) => {
       const checkInterval = setInterval(() => {
         const decision = this.userRetryDecisions.get(bookId);
@@ -328,7 +327,6 @@ class BookGenerationService {
     });
   }
 
-  // ✅ NEW: User action handlers
   setRetryDecision(bookId: string, decision: 'retry' | 'switch' | 'skip') {
     this.userRetryDecisions.set(bookId, decision);
   }
@@ -693,7 +691,6 @@ Return ONLY valid JSON:
     return roadmap;
   }
 
-  // ✅ ENHANCED: Module generation with user retry decision
   async generateModuleContentWithRetry(
     book: BookProject,
     roadmapModule: RoadmapModule,
@@ -806,7 +803,6 @@ Return ONLY valid JSON:
 
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       
-      // ✅ NEW: Ask user before retrying
       if (attemptNumber < this.MAX_MODULE_RETRIES && this.shouldRetry(error, attemptNumber)) {
         const decision = await this.waitForUserRetryDecision(
           book.id,
@@ -820,10 +816,8 @@ Return ONLY valid JSON:
           await sleep(delay);
           return this.generateModuleContentWithRetry(book, roadmapModule, session, attemptNumber + 1);
         } else if (decision === 'switch') {
-          // User will switch model manually, throw error to stop current flow
           throw new Error('USER_REQUESTED_MODEL_SWITCH');
         } else {
-          // Skip this module
           return {
             id: generateId(),
             roadmapModuleId: roadmapModule.id,
@@ -1101,7 +1095,6 @@ ${session.preferences?.includePracticalExercises ? '### Practice Exercises' : ''
           
             return;
           } else if (error.message === 'USER_REQUESTED_MODEL_SWITCH') {
-            // Save checkpoint and stop
             const totalWords = completedModules.reduce((sum, m) => 
               sum + (m.status === 'completed' ? m.wordCount : 0), 0
             );
@@ -1270,6 +1263,7 @@ ${session.preferences?.includePracticalExercises ? '### Practice Exercises' : ''
     }
   }
 
+  // ✅ FIXED: Clear pause flag when book is completed
   async assembleFinalBook(book: BookProject, session: BookSession): Promise<void> {
     this.updateProgress(book.id, { status: 'assembling', progress: 90 });
 
@@ -1300,6 +1294,15 @@ ${session.preferences?.includePracticalExercises ? '### Practice Exercises' : ''
       ].join('');
 
       this.clearCheckpoint(book.id);
+      
+      // ✅ FIX: Clear pause flag when book is completed
+      try {
+        localStorage.removeItem(`pause_flag_${book.id}`);
+        console.log('✓ Cleared pause flag for completed book:', book.id);
+      } catch (error) {
+        console.warn('Failed to clear pause flag:', error);
+      }
+      
       this.updateProgress(book.id, {
         status: 'completed',
         progress: 100,
