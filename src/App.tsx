@@ -1,4 +1,3 @@
-// src/App.tsx - COMPLETE FILE WITH RETRY SYSTEM
 import React, { useState, useEffect, useMemo } from 'react';
 import { Analytics } from '@vercel/analytics/react';
 import { Sidebar } from './components/Sidebar';
@@ -57,10 +56,9 @@ function App() {
     totalWordsGenerated: 0,
   });
   const [generationStartTime, setGenerationStartTime] = useState<Date>(new Date());
-
-  // ✅ NEW: Model switch modal state
   const [showModelSwitch, setShowModelSwitch] = useState(false);
   const [modelSwitchOptions, setModelSwitchOptions] = useState<Array<{provider: ModelProvider; model: string; name: string}>>([]);
+  
   const { isInstallable, isInstalled, installApp, dismissInstallPrompt } = usePWA();
   const currentBook = useMemo(() =>
     currentBookId ? books.find(b => b.id === currentBookId) : null,
@@ -84,29 +82,20 @@ function App() {
     generationStatus.totalWordsGenerated || totalWordsGenerated
   );
 
-  // ✅ NEW: Add this function to clear pause flags for completed books
-  const clearPauseFlagIfCompleted = (book: BookProject) => {
-    if (book.status === 'completed') {
-      try {
-        localStorage.removeItem(`pause_flag_${book.id}`);
-        console.log('✓ Cleared pause flag for completed book:', book.id);
-      } catch (error) {
-        console.warn('Failed to clear pause flag:', error);
-      }
-    }
-  };
-
-  // ✅ NEW: Add this useEffect to clean up pause flags on mount
+  // ✅ FIX: Clean up pause flags for completed books on mount
   useEffect(() => {
-    // Clean up pause flags for all completed books on app load
     books.forEach(book => {
       if (book.status === 'completed') {
-        clearPauseFlagIfCompleted(book);
+        try {
+          localStorage.removeItem(`pause_flag_${book.id}`);
+          console.log('✓ Cleared pause flag for completed book:', book.id);
+        } catch (error) {
+          console.warn('Failed to clear pause flag:', error);
+        }
       }
     });
   }, []); // Run only once on mount
 
-  // ✅ Check for paused state on mount
   useEffect(() => {
     if (currentBook && currentBook.status === 'generating_content') {
       const checkpoint = bookService.getCheckpointInfo(currentBook.id);
@@ -155,9 +144,7 @@ function App() {
 
   useEffect(() => {
     bookService.updateSettings(settings);
-
     bookService.setProgressCallback(handleBookProgressUpdate);
-
     bookService.setGenerationStatusCallback((bookId, status) => {
       setGenerationStatus(prevStatus => ({
         ...prevStatus,
@@ -214,7 +201,6 @@ function App() {
 
   const hasApiKey = !!(settings.googleApiKey || settings.mistralApiKey || settings.zhipuApiKey);
 
-  // ✅ NEW: Get alternative AI models
   const getAlternativeModels = () => {
     const alternatives: Array<{provider: ModelProvider; model: string; name: string}> = [];
 
@@ -245,13 +231,11 @@ function App() {
     return alternatives;
   };
 
-  // ✅ NEW: Show model switch modal
   const showModelSwitchModal = (alternatives: Array<{provider: ModelProvider; model: string; name: string}>) => {
     setModelSwitchOptions(alternatives);
     setShowModelSwitch(true);
   };
 
-  // ✅ NEW: Handle model switch
   const handleModelSwitch = async (provider: ModelProvider, model: string) => {
     const newSettings = { ...settings, selectedProvider: provider, selectedModel: model };
     setSettings(newSettings);
@@ -273,16 +257,13 @@ function App() {
     }, 100);
   };
 
-  // ✅ NEW: Handle retry decision from user
   const handleRetryDecision = async (decision: 'retry' | 'switch' | 'skip') => {
     if (!currentBook) return;
 
     if (decision === 'retry') {
-      // User wants to retry with same model
       bookService.setRetryDecision(currentBook.id, 'retry');
 
     } else if (decision === 'switch') {
-      // User wants to switch model
       bookService.setRetryDecision(currentBook.id, 'switch');
 
       const alternatives = getAlternativeModels();
@@ -296,7 +277,6 @@ function App() {
       showModelSwitchModal(alternatives);
 
     } else if (decision === 'skip') {
-      // User wants to skip this module
       const confirmed = window.confirm(
         '⚠️ Skip this module?\n\n' +
         '• The module will be marked as failed\n' +
@@ -311,6 +291,7 @@ function App() {
     }
   };
 
+  // ✅ FIXED: Clear pause flag when selecting completed books
   const handleSelectBook = (id: string | null) => {
     setCurrentBookId(id);
     if (id) {
@@ -318,10 +299,22 @@ function App() {
 
       const book = books.find(b => b.id === id);
       if (book) {
-        // ✅ FIXED: Clear pause flag if book is completed
-        clearPauseFlagIfCompleted(book);
-
-        if (book.status === 'generating_content') {
+        // ✅ FIX: Clear pause flag if book is completed
+        if (book.status === 'completed') {
+          try {
+            localStorage.removeItem(`pause_flag_${id}`);
+            console.log('✓ Cleared pause flag for completed book:', id);
+          } catch (error) {
+            console.warn('Failed to clear pause flag:', error);
+          }
+          
+          // Reset generation status for completed books
+          setGenerationStatus({
+            status: 'idle',
+            totalProgress: 0,
+            totalWordsGenerated: book.modules.reduce((sum, m) => sum + m.wordCount, 0)
+          });
+        } else if (book.status === 'generating_content') {
           const checkpoint = bookService.getCheckpointInfo(id);
           if (checkpoint && checkpoint.completed > 0) {
             const isPaused = bookService.isPaused(id);
@@ -336,13 +329,6 @@ function App() {
               });
             }
           }
-        } else if (book.status === 'completed') {
-          // ✅ FIXED: Reset generation status for completed books
-          setGenerationStatus({
-            status: 'idle',
-            totalProgress: 0,
-            totalWordsGenerated: book.modules.reduce((sum, m) => sum + m.wordCount, 0)
-          });
         }
       }
     }
@@ -736,7 +722,6 @@ function App() {
         settings={settings}
         onSaveSettings={handleSaveSettings}
       />
-      {/* ✅ NEW: Model Switch Modal */}
       {showModelSwitch && (
         <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
           <div className="bg-[var(--color-sidebar)] border border-[var(--color-border)] rounded-2xl shadow-2xl w-full max-w-md p-6 animate-fade-in-up">
@@ -807,4 +792,4 @@ function App() {
   );
 }
 
-export default App;
+export default App; 
