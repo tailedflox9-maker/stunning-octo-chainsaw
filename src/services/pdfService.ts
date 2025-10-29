@@ -1,9 +1,3 @@
-// src/services/pdfService.ts - PROFESSIONAL ACADEMIC VERSION (Updated: Aptos-Mono as Main Font + Disclaimer Page)
-// Quick Update: Removed Lora loading. Uses Aptos-Mono (Regular & Bold) as primary font for all text.
-// Falls back to Roboto if files missing. Monospaced for a clean, code-inspired academic look.
-// Italics fall back to regular (no italic variant). Code blocks also use it for consistency.
-// FIXED: Filename template string issue resolved
-
 import { BookProject } from '../types';
 let isGenerating = false;
 let pdfMake: any = null;
@@ -84,7 +78,7 @@ async function loadPdfMake() {
             )
           );
           pdfMake.vfs[font.key] = base64;
-          console.log(`✓ Loaded ${font.name} (${base64.substring(0, 50)}... )`);
+          console.log(`✓ Loaded ${font.name}`);
           hasAptosMono = true;
         } else {
           console.log(`⚠ ${font.name} not found (HTTP ${response.status})`);
@@ -749,8 +743,13 @@ class ProfessionalPdfGenerator {
   private generateSafeFilename(title: string): string {
     const sanitized = title
       .replace(/[^a-z0-9\s-]/gi, '')
-      .replace(/\s+/g, '_')
-      .toLowerCase()
+      .trim()
+      .split(/\s+/)
+      .map((word, index) => {
+        // Capitalize first letter of each word, lowercase rest
+        return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+      })
+      .join('_')
       .substring(0, 50);
     
     const date = new Date().toISOString().slice(0, 10);
