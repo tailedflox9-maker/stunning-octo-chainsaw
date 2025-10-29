@@ -99,25 +99,34 @@ async function loadPdfMake() {
     }
     console.log('✓ VFS loaded with', vfsKeys.length, 'files');
 
-    // Main font: Aptos-Mono if loaded, else Roboto
-    const mainFontFamily = hasAptosMono ? 'Aptos-Mono' : 'Roboto';
+    // Check which fonts are actually available in VFS
+    const hasAptosMono = vfs['Aptos-Mono.ttf'] && vfs['Aptos-Mono-Bold.ttf'];
+    const hasRoboto = vfs['Roboto-Regular.ttf'] && vfs['Roboto-Medium.ttf'];
+    
+    console.log('🔍 Available fonts - Aptos-Mono:', hasAptosMono, 'Roboto:', hasRoboto);
 
-    // Configure fonts: Primary + fallback
-    pdfMake.fonts = {
-      'Aptos-Mono': {
-        normal: 'Aptos-Mono.ttf',
-        bold: 'Aptos-Mono-Bold.ttf',
-        italics: 'Aptos-Mono.ttf',
-        bolditalics: 'Aptos-Mono-Bold.ttf'
-      },
-      Roboto: {
-        normal: 'Roboto-Regular.ttf',
-        bold: 'Roboto-Medium.ttf',
-        italics: 'Roboto-Italic.ttf',
-        bolditalics: 'Roboto-MediumItalic.ttf'
-      }
-    };
-    console.log(`✓ Using main font: ${mainFontFamily}`);
+    // Configure fonts based on what's actually available
+    if (hasAptosMono) {
+      console.log('✓ Configuring Aptos-Mono fonts');
+      pdfMake.fonts = {
+        'Aptos-Mono': {
+          normal: 'Aptos-Mono.ttf',
+          bold: 'Aptos-Mono-Bold.ttf',
+          italics: 'Aptos-Mono.ttf',
+          bolditalics: 'Aptos-Mono-Bold.ttf'
+        }
+      };
+    } else {
+      console.log('✓ Configuring Roboto fonts (Aptos-Mono not available)');
+      pdfMake.fonts = {
+        Roboto: {
+          normal: 'Roboto-Regular.ttf',
+          bold: 'Roboto-Medium.ttf',
+          italics: 'Roboto-Italic.ttf',
+          bolditalics: 'Roboto-MediumItalic.ttf'
+        }
+      };
+    }
     fontsLoaded = true;
     return pdfMake;
   } catch (error) {
