@@ -384,6 +384,21 @@ class ProfessionalPdfGenerator {
           skipToC = false;
         }
       }
+      if (trimmed === '---' || trimmed.match(/^-{3,}$/)) {
+        flushParagraph();
+        flushTable();
+        content.push({
+          canvas: [{
+            type: 'line',
+            x1: 0, y1: 0,
+            x2: 465, y2: 0,
+            lineWidth: 1.5,
+            lineColor: '#cbd5e1'
+          }],
+          margin: [0, 15, 0, 20]
+        });
+        continue;
+      }
       if (trimmed.startsWith('```')) {
         flushParagraph();
         if (inCodeBlock) {
@@ -430,10 +445,20 @@ class ProfessionalPdfGenerator {
                               /^#\s+module\s+\d+/i.test(trimmed);
       if (trimmed.startsWith('# ')) {
         flushParagraph();
-        const text = this.cleanText(trimmed.substring(2));
+        let text = this.cleanText(trimmed.substring(2));
+        text = this.capitalizeFirstLetter(text);
         if (isModuleHeading) {
           if (!isFirstModule) {
-            content.push({ text: '', pageBreak: 'before' });
+            content.push({
+              canvas: [{
+                type: 'line',
+                x1: 0, y1: 0,
+                x2: 465, y2: 0,
+                lineWidth: 2,
+                lineColor: '#d1d5db'
+              }],
+              margin: [0, 20, 0, 30]
+            });
           }
           isFirstModule = false;
           content.push({ text, style: 'h1Module' });
@@ -442,14 +467,19 @@ class ProfessionalPdfGenerator {
         }
       } else if (trimmed.startsWith('## ')) {
         flushParagraph();
-        const text = this.cleanText(trimmed.substring(3));
+        let text = this.cleanText(trimmed.substring(3));
+        text = this.capitalizeFirstLetter(text);
         content.push({ text, style: 'h2' });
       } else if (trimmed.startsWith('### ')) {
         flushParagraph();
-        content.push({ text: this.cleanText(trimmed.substring(4)), style: 'h3' });
+        let text = this.cleanText(trimmed.substring(4));
+        text = this.capitalizeFirstLetter(text);
+        content.push({ text, style: 'h3' });
       } else if (trimmed.startsWith('#### ')) {
         flushParagraph();
-        content.push({ text: this.cleanText(trimmed.substring(5)), style: 'h4' });
+        let text = this.cleanText(trimmed.substring(5));
+        text = this.capitalizeFirstLetter(text);
+        content.push({ text, style: 'h4' });
       } else if (trimmed.match(/^[-*+]\s+/)) {
         flushParagraph();
         content.push({
@@ -716,6 +746,11 @@ class ProfessionalPdfGenerator {
     
     const date = new Date().toISOString().slice(0, 10);
     return `${sanitized}_${date}.pdf`;
+  }
+
+  private capitalizeFirstLetter(text: string): string {
+    if (!text) return text;
+    return text.charAt(0).toUpperCase() + text.slice(1);
   }
 
   public async generate(project: BookProject, onProgress: (progress: number) => void): Promise<void> {
