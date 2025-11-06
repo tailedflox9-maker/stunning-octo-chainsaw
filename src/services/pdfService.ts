@@ -1,4 +1,4 @@
-// src/services/pdfService.ts - FIXED VERSION WITH DYNAMIC CODE BLOCKS
+// src/services/pdfService.ts - FIXED VERSION WITH EMOJIS & HYPHENS
 import { BookProject } from '../types';
 let isGenerating = false;
 let pdfMake: any = null;
@@ -169,6 +169,9 @@ interface PDFContent {
   preserveLeadingSpaces?: boolean;
   background?: string;
   font?: string;
+  unbreakable?: boolean;
+  dontBreakRows?: boolean;
+  widths?: any;
 }
 
 class ProfessionalPdfGenerator {
@@ -263,16 +266,16 @@ class ProfessionalPdfGenerator {
         alignment: 'justify'
       },
       tableHeader: {
-        fontSize: 9, // ✅ Reduced from 10.5
+        fontSize: 9,
         bold: true,
         color: '#000000',
         fillColor: '#d1d5db',
         alignment: 'left'
       },
       tableCell: {
-        fontSize: 8.5, // ✅ Reduced from 10
+        fontSize: 8.5,
         color: '#1f2937',
-        lineHeight: 1.3, // ✅ Reduced from 1.4
+        lineHeight: 1.3,
         alignment: 'left'
       },
       disclaimerTitle: {
@@ -300,7 +303,23 @@ class ProfessionalPdfGenerator {
     };
   }
 
+  // ✅ NEW: Normalize Unicode dashes to ASCII hyphens
+  private normalizeDashes(text: string): string {
+    return text
+      // Convert all dash variants to ASCII hyphen
+      .replace(/[\u2010-\u2015\u2212\uFE58\uFE63\uFF0D]/g, '-')
+      // Convert smart quotes to straight quotes
+      .replace(/[\u201C\u201D]/g, '"')
+      .replace(/[\u2018\u2019]/g, "'")
+      // Convert ellipsis
+      .replace(/[\u2026]/g, '...');
+  }
+
+  // ✅ UPDATED: Keep emojis, normalize dashes
   private cleanText(text: string): string {
+    // First normalize dashes
+    text = this.normalizeDashes(text);
+    
     return text
       .replace(/\*\*\*(.+?)\*\*\*/g, '$1')
       .replace(/\*\*(.+?)\*\*/g, '$1')
@@ -311,17 +330,20 @@ class ProfessionalPdfGenerator {
       .replace(/`(.+?)`/g, '$1')
       .replace(/\[(.+?)\]\(.+?\)/g, '$1')
       .replace(/!\[.*?\]\(.+?\)/g, '')
-      .replace(/[\u{1F300}-\u{1F9FF}]/gu, '')
-      .replace(/[\u{2600}-\u{26FF}]/gu, '')
-      .replace(/[\u{2700}-\u{27BF}]/gu, '')
+      // ✅ KEEP EMOJIS - Don't remove them!
       .trim();
   }
 
+  // ✅ UPDATED: Parse inline markdown with emoji support and dash normalization
   private parseInlineMarkdown(text: string): any {
+    // Normalize dashes first
+    text = this.normalizeDashes(text);
+    
     const parts: any[] = [];
     let lastIndex = 0;
     
-    const regex = /(\*\*\*(.+?)\*\*\*|\*\*(.+?)\*\*|\*(.+?)\*|__(.+?)__|_(.+?)_|`(.+?)`|~~(.+?)~~)/g;
+    // ✅ Combined regex: markdown formatting + emojis
+    const regex = /(\*\*\*(.+?)\*\*\*|\*\*(.+?)\*\*|\*(.+?)\*|__(.+?)__|_(.+?)_|`(.+?)`|~~(.+?)~~|([\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]))/gu;
     let match;
     
     while ((match = regex.exec(text)) !== null) {
@@ -329,7 +351,16 @@ class ProfessionalPdfGenerator {
         parts.push({ text: text.substring(lastIndex, match.index) });
       }
       
-      if (match[2]) {
+      // Check if it's an emoji (group 9)
+      if (match[9]) {
+        parts.push({ 
+          text: match[9],
+          fontSize: 11, // Slightly larger for visibility
+          characterSpacing: 0.5 // Add spacing around emoji
+        });
+      }
+      // Handle markdown formatting
+      else if (match[2]) {
         parts.push({ text: match[2], bold: true, italics: true });
       } else if (match[3]) {
         parts.push({ text: match[3], bold: true });
@@ -355,22 +386,8 @@ class ProfessionalPdfGenerator {
     return parts.length === 0 ? text : (parts.length === 1 && typeof parts[0] === 'string') ? parts[0] : parts;
   }
 
-  // ✅ NEW: Calculate dynamic height for code blocks
-  private calculateCodeBlockHeight(code: string, fontSize: number = 8.5, lineHeight: number = 1.5): number {
-    const lines = code.split('\n');
-    const lineCount = lines.length;
-    
-    // Calculate text height: lineCount * fontSize * lineHeight
-    const textHeight = lineCount * fontSize * lineHeight;
-    
-    // Add padding (top + bottom)
-    const padding = 20; // 10px top + 10px bottom
-    
-    return textHeight + padding;
-  }
-
-  // ✅ NEW: Split long code blocks across pages if needed
-  private splitCodeBlock(code: string, maxLines: number = 45): string[] {
+  // Split long code blocks across pages if needed
+  private splitCodeBlock(code: string, maxLines: number = 40): string[] {
     const lines = code.split('\n');
     const chunks: string[] = [];
     
@@ -382,6 +399,9 @@ class ProfessionalPdfGenerator {
   }
 
   private parseMarkdownToContent(markdown: string): PDFContent[] {
+    // ✅ Normalize dashes in the entire markdown first
+    markdown = this.normalizeDashes(markdown);
+    
     const content: PDFContent[] = [];
     const lines = markdown.split('\n');
     let paragraphBuffer: string[] = [];
@@ -409,34 +429,28 @@ class ProfessionalPdfGenerator {
       }
     };
 
-    // ✅ UPDATED: Dynamic code block rendering with proper sizing
     const flushCodeBlock = () => {
       if (codeBuffer.length === 0 || skipToC) return;
 
       const fullCode = codeBuffer.join('\n');
-      const fontSize = 8; // Smaller font for better fit
+      const fontSize = 8;
       const lineHeight = 1.4;
       const paddingTopBottom = 12;
       const paddingLeftRight = 12;
       
-      // Split into chunks if too long
-      const chunks = this.splitCodeBlock(fullCode, 40); // Reduced from 45
+      const chunks = this.splitCodeBlock(fullCode, 40);
       
       chunks.forEach((chunk, chunkIndex) => {
         const lines = chunk.split('\n');
         const lineCount = lines.length;
-        
-        // Calculate actual height needed
         const textHeight = lineCount * fontSize * lineHeight;
         const blockHeight = textHeight + (paddingTopBottom * 2);
-        const contentWidth = 515; // Full content width
+        const contentWidth = 515;
         
-        // Add page break before code block if it's too close to bottom
         if (chunkIndex > 0) {
           content.push({ text: '', pageBreak: 'before' });
         }
         
-        // Use table layout for better containment
         content.push({
           table: {
             widths: [contentWidth],
@@ -466,10 +480,9 @@ class ProfessionalPdfGenerator {
             paddingBottom: () => 0
           },
           margin: [0, 12, 0, 12],
-          unbreakable: blockHeight < 500 // Prevent page breaks if possible
+          unbreakable: blockHeight < 500
         });
         
-        // Add continuation indicator if split
         if (chunkIndex < chunks.length - 1) {
           content.push({
             text: '... (continued on next page)',
@@ -489,20 +502,14 @@ class ProfessionalPdfGenerator {
       if (tableRows.length > 0 && tableHeaders.length > 0 && !skipToC) {
         const colCount = tableHeaders.length;
         
-        // ✅ FIXED: Dynamic column widths based on content
-        // Calculate approximate width for each column
         const calculateColumnWidths = () => {
           if (colCount <= 2) {
-            // 2 columns: equal split
             return Array(colCount).fill('*');
           } else if (colCount === 3) {
-            // 3 columns: slightly wider middle
             return ['*', '*', '*'];
           } else if (colCount === 4) {
-            // 4 columns: equal
             return Array(colCount).fill('*');
           } else {
-            // 5+ columns: make them narrower
             return Array(colCount).fill('auto');
           }
         };
@@ -516,17 +523,17 @@ class ProfessionalPdfGenerator {
                 text: this.parseInlineMarkdown(h),
                 style: 'tableHeader',
                 fillColor: '#d1d5db',
-                margin: [4, 4, 4, 4], // ✅ Reduced padding
+                margin: [4, 4, 4, 4],
                 alignment: 'left',
-                fontSize: 9 // ✅ Smaller font for headers
+                fontSize: 9
               })),
               ...tableRows.map(row =>
                 row.map(cell => ({
                   text: this.parseInlineMarkdown(cell),
                   style: 'tableCell',
-                  margin: [4, 3, 4, 3], // ✅ Reduced padding
+                  margin: [4, 3, 4, 3],
                   alignment: 'left',
-                  fontSize: 8.5 // ✅ Smaller font for cells
+                  fontSize: 8.5
                 }))
               )
             ]
@@ -536,15 +543,13 @@ class ProfessionalPdfGenerator {
             vLineWidth: () => 0.5,
             hLineColor: (i: number, node: any) => (i === 0 || i === 1 || i === node.table.body.length) ? '#6b7280' : '#9ca3af',
             vLineColor: () => '#9ca3af',
-            paddingLeft: () => 4, // ✅ Reduced from 5
+            paddingLeft: () => 4,
             paddingRight: () => 4,
-            paddingTop: () => 3, // ✅ Reduced from 4
+            paddingTop: () => 3,
             paddingBottom: () => 3
           },
           margin: [0, 8, 0, 12],
-          // ✅ Allow table to break across pages if needed
           dontBreakRows: false,
-          // ✅ Keep table within page bounds
           widths: 'auto'
         });
         tableRows = [];
@@ -710,7 +715,8 @@ class ProfessionalPdfGenerator {
           margin: [15, 10, 15, 10]
         });
       } else {
-        const cleaned = trimmed.replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '').trim();
+        // ✅ Keep emojis in paragraph text
+        const cleaned = trimmed.trim();
         if (cleaned) paragraphBuffer.push(cleaned);
       }
     }
@@ -818,10 +824,13 @@ class ProfessionalPdfGenerator {
     provider?: string;
     model?: string;
   }): PDFContent[] {
+    // ✅ Normalize dashes in title
+    const normalizedTitle = this.normalizeDashes(title);
+    
     return [
       { text: '', margin: [0, 80, 0, 0] },
       {
-        text: title,
+        text: normalizedTitle,
         style: 'coverTitle',
         margin: [0, 0, 0, 12]
       },
@@ -999,7 +1008,7 @@ class ProfessionalPdfGenerator {
         return {
           columns: [
             {
-              text: project.title,
+              text: this.normalizeDashes(project.title),
               fontSize: 8,
               color: '#666666',
               italics: true,
@@ -1040,7 +1049,7 @@ class ProfessionalPdfGenerator {
         };
       },
       info: {
-        title: project.title,
+        title: this.normalizeDashes(project.title),
         author: 'Pustakam Injin - Tanmay Kalbande',
         creator: 'Pustakam Injin',
         subject: project.goal,
@@ -1079,15 +1088,15 @@ class ProfessionalPdfGenerator {
             </div>
             <div class="space-y-3 mb-6">
               <p class="text-sm text-gray-300 leading-relaxed">
-                Your document has been formatted with professional typography and enhanced code blocks.
+                Your document has been formatted with professional typography, emoji support, and perfect rendering.
               </p>
               <ul class="space-y-2 text-sm text-gray-400">
                 <li class="flex items-start gap-2"><span class="text-green-400 shrink-0">✓</span><span>Square-bordered code blocks with dynamic sizing</span></li>
                 <li class="flex items-start gap-2"><span class="text-green-400 shrink-0">✓</span><span>Auto-split for long code (no overflow)</span></li>
-                <li class="flex items-start gap-2"><span class="text-green-400 shrink-0">✓</span><span>Perfectly aligned text and borders</span></li>
+                <li class="flex items-start gap-2"><span class="text-green-400 shrink-0">✓</span><span>All dashes normalized (no ? marks)</span></li>
                 <li class="flex items-start gap-2"><span class="text-green-400 shrink-0">✓</span><span>${this.fontFamily} font for consistent style</span></li>
-                ${hasEmojis ? '<li class="flex items-start gap-2"><span class="text-yellow-400 shrink-0">•</span><span>Emojis removed for compatibility</span></li>' : ''}
-                ${hasComplexFormatting ? '<li class="flex items-start gap-2"><span class="text-yellow-400 shrink-0">•</span><span>Advanced formatting simplified</span></li>' : ''}
+                ${hasEmojis ? '<li class="flex items-start gap-2"><span class="text-green-400 shrink-0">✓</span><span>Emojis preserved (copyable & searchable!)</span></li>' : ''}
+                ${hasComplexFormatting ? '<li class="flex items-start gap-2"><span class="text-blue-400 shrink-0">•</span><span>Advanced formatting optimized</span></li>' : ''}
               </ul>
             </div>
             <div class="flex gap-3">
