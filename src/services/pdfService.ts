@@ -315,13 +315,12 @@ class ProfessionalPdfGenerator {
       .replace(/[\u2026]/g, '...');
   }
 
-  // ✅ UPDATED: REMOVE emojis, normalize dashes
+  // ✅ UPDATED: Keep emojis, normalize dashes
   private cleanText(text: string): string {
     // First normalize dashes
     text = this.normalizeDashes(text);
     
     return text
-      .replace(/([\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF])/g, '') // REMOVE EMOJIS
       .replace(/\*\*\*(.+?)\*\*\*/g, '$1')
       .replace(/\*\*(.+?)\*\*/g, '$1')
       .replace(/\*(.+?)\*/g, '$1')
@@ -331,20 +330,20 @@ class ProfessionalPdfGenerator {
       .replace(/`(.+?)`/g, '$1')
       .replace(/\[(.+?)\]\(.+?\)/g, '$1')
       .replace(/!\[.*?\]\(.+?\)/g, '')
+      // ✅ KEEP EMOJIS - Don't remove them!
       .trim();
   }
 
-  // ✅ UPDATED: Parse inline markdown WITHOUT emoji support and with dash normalization
+  // ✅ UPDATED: Parse inline markdown with emoji support and dash normalization
   private parseInlineMarkdown(text: string): any {
-    // Normalize dashes and remove emojis first
+    // Normalize dashes first
     text = this.normalizeDashes(text);
-    text = text.replace(/([\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF])/g, '');
     
     const parts: any[] = [];
     let lastIndex = 0;
     
-    // ✅ Combined regex: markdown formatting ONLY
-    const regex = /(\*\*\*(.+?)\*\*\*|\*\*(.+?)\*\*|\*(.+?)\*|__(.+?)__|_(.+?)_|`(.+?)`|~~(.+?)~~)/g;
+    // ✅ Combined regex: markdown formatting + emojis
+    const regex = /(\*\*\*(.+?)\*\*\*|\*\*(.+?)\*\*|\*(.+?)\*|__(.+?)__|_(.+?)_|`(.+?)`|~~(.+?)~~|([\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]))/gu;
     let match;
     
     while ((match = regex.exec(text)) !== null) {
@@ -352,8 +351,16 @@ class ProfessionalPdfGenerator {
         parts.push({ text: text.substring(lastIndex, match.index) });
       }
       
+      // Check if it's an emoji (group 9)
+      if (match[9]) {
+        parts.push({ 
+          text: match[9],
+          fontSize: 11, // Slightly larger for visibility
+          characterSpacing: 0.5 // Add spacing around emoji
+        });
+      }
       // Handle markdown formatting
-      if (match[2]) {
+      else if (match[2]) {
         parts.push({ text: match[2], bold: true, italics: true });
       } else if (match[3]) {
         parts.push({ text: match[3], bold: true });
@@ -640,7 +647,7 @@ class ProfessionalPdfGenerator {
                 lineWidth: 2,
                 lineColor: '#d1d5db'
               }],
-              margin:
+              margin: [0, 20, 0, 30]
             });
           }
           isFirstModule = false;
@@ -670,18 +677,18 @@ class ProfessionalPdfGenerator {
         content.push({
           text: Array.isArray(formattedText) ? [{ text: '• ' }, ...formattedText] : [{ text: '• ' }, formattedText],
           style: 'listItem',
-          margin:,
+          margin: [10, 3, 0, 3],
           alignment: 'left'
         });
       } else if (trimmed.match(/^\d+\.\s+/)) {
         flushParagraph();
-        const num = trimmed.match(/^(\d+)\./)?. || '';
+        const num = trimmed.match(/^(\d+)\./)?.[1] || '';
         const listText = trimmed.replace(/^\d+\.\s+/, '');
         const formattedText = this.parseInlineMarkdown(listText);
         content.push({
           text: Array.isArray(formattedText) ? [{ text: num + '. ' }, ...formattedText] : [{ text: num + '. ' }, formattedText],
           style: 'listItem',
-          margin:,
+          margin: [10, 3, 0, 3],
           alignment: 'left'
         });
       } else if (trimmed.startsWith('>')) {
@@ -701,14 +708,14 @@ class ProfessionalPdfGenerator {
               width: '*',
               text: this.parseInlineMarkdown(trimmed.substring(1).trim()),
               style: 'blockquote',
-              margin:,
+              margin: [8, 0, 0, 0],
               alignment: 'justify'
             }
           ],
-          margin:
+          margin: [15, 10, 15, 10]
         });
       } else {
-        // ✅ REMOVED EMOJI HANDLING
+        // ✅ Keep emojis in paragraph text
         const cleaned = trimmed.trim();
         if (cleaned) paragraphBuffer.push(cleaned);
       }
@@ -721,7 +728,7 @@ class ProfessionalPdfGenerator {
 
   private createDisclaimerPage(): PDFContent[] {
     return [
-      { text: '', margin: },
+      { text: '', margin: [0, 60, 0, 0] },
       {
         text: 'IMPORTANT DISCLAIMER',
         style: 'disclaimerTitle'
@@ -735,14 +742,14 @@ class ProfessionalPdfGenerator {
           h: 2,
           color: '#4a5568'
         }],
-        margin:
+        margin: [0, 0, 0, 30]
       },
       {
         text: 'AI-Generated Content Notice',
         fontSize: 12,
         bold: true,
         color: '#2d3748',
-        margin:,
+        margin: [0, 0, 0, 12],
         alignment: 'left'
       },
       {
@@ -758,14 +765,14 @@ class ProfessionalPdfGenerator {
           'This content should not be considered a substitute for professional advice in medical, legal, financial, or other specialized fields.'
         ],
         style: 'disclaimerNote',
-        margin:
+        margin: [20, 10, 0, 20]
       },
       {
         text: 'Intellectual Property & Usage',
         fontSize: 12,
         bold: true,
         color: '#2d3748',
-        margin:,
+        margin: [0, 10, 0, 12],
         alignment: 'left'
       },
       {
@@ -777,7 +784,7 @@ class ProfessionalPdfGenerator {
         fontSize: 12,
         bold: true,
         color: '#2d3748',
-        margin:,
+        margin: [0, 10, 0, 12],
         alignment: 'left'
       },
       {
@@ -797,7 +804,7 @@ class ProfessionalPdfGenerator {
             minute: '2-digit'
           }), fontSize: 9, color: '#2d3748' }
         ],
-        margin:,
+        margin: [0, 30, 0, 10],
         alignment: 'left'
       },
       {
@@ -805,7 +812,7 @@ class ProfessionalPdfGenerator {
         fontSize: 8,
         color: '#718096',
         alignment: 'center',
-        margin:
+        margin: [0, 0, 0, 20]
       }
     ];
   }
@@ -821,17 +828,17 @@ class ProfessionalPdfGenerator {
     const normalizedTitle = this.normalizeDashes(title);
     
     return [
-      { text: '', margin: },
+      { text: '', margin: [0, 80, 0, 0] },
       {
         text: normalizedTitle,
         style: 'coverTitle',
-        margin:
+        margin: [0, 0, 0, 12]
       },
       {
         text: 'Generated by Pustakam Injin',
         fontSize: 11,
         color: '#666666',
-        margin:,
+        margin: [0, 0, 0, 40],
         alignment: 'left'
       },
       {
@@ -839,7 +846,7 @@ class ProfessionalPdfGenerator {
         fontSize: 11,
         bold: true,
         color: '#1a1a1a',
-        margin:,
+        margin: [0, 0, 0, 8],
         alignment: 'left'
       },
       {
@@ -848,7 +855,7 @@ class ProfessionalPdfGenerator {
         lineHeight: 1.6,
         alignment: 'justify',
         color: '#1a1a1a',
-        margin:
+        margin: [0, 0, 0, 30]
       },
       {
         stack: [
@@ -857,7 +864,7 @@ class ProfessionalPdfGenerator {
             fontSize: 11,
             bold: true,
             color: '#1a1a1a',
-            margin:,
+            margin: [0, 0, 0, 8],
             alignment: 'left'
           },
           {
@@ -865,32 +872,32 @@ class ProfessionalPdfGenerator {
               { text: 'Word Count:', width: 80, fontSize: 9, color: '#666666' },
               { text: metadata.words.toLocaleString(), fontSize: 9, color: '#1a1a1a' }
             ],
-            margin:
+            margin: [0, 0, 0, 4]
           },
           {
             columns: [
               { text: 'Chapters:', width: 80, fontSize: 9, color: '#666666' },
               { text: metadata.modules.toString(), fontSize: 9, color: '#1a1a1a' }
             ],
-            margin:
+            margin: [0, 0, 0, 4]
           },
           {
             columns: [
               { text: 'Generated:', width: 80, fontSize: 9, color: '#666666' },
               { text: metadata.date, fontSize: 9, color: '#1a1a1a' }
             ],
-            margin:
+            margin: [0, 0, 0, 4]
           },
           ...(metadata.provider && metadata.model ? [{
             columns: [
               { text: 'AI Model:', width: 80, fontSize: 9, color: '#666666' },
               { text: `${metadata.provider} ${metadata.model}`, fontSize: 9, color: '#1a1a1a' }
             ],
-            margin:
+            margin: [0, 0, 0, 4]
           }] : [])
         ]
       },
-      { text: '', margin: },
+      { text: '', margin: [0, 0, 0, 80] },
       {
         stack: [
           {
@@ -901,21 +908,21 @@ class ProfessionalPdfGenerator {
               lineWidth: 1,
               lineColor: '#1a1a1a'
             }],
-            margin:
+            margin: [0, 0, 0, 12]
           },
           {
             text: 'Pustakam Injin',
             fontSize: 10,
             bold: true,
             color: '#1a1a1a',
-            margin:,
+            margin: [0, 0, 0, 4],
             alignment: 'left'
           },
           {
             text: 'AI-Powered Knowledge Creation',
             fontSize: 9,
             color: '#666666',
-            margin:,
+            margin: [0, 0, 0, 8],
             alignment: 'left'
           },
           {
@@ -961,8 +968,8 @@ class ProfessionalPdfGenerator {
     
     const totalWords = project.modules.reduce((sum, m) => sum + m.wordCount, 0);
     const providerMatch = project.finalBook?.match(/\*\*Provider:\*\* (.+?) \((.+?)\)/);
-    const provider = providerMatch ? providerMatch : undefined;
-    const model = providerMatch ? providerMatch : undefined;
+    const provider = providerMatch ? providerMatch[1] : undefined;
+    const model = providerMatch ? providerMatch[2] : undefined;
     
     const coverContent = this.createCoverPage(project.title, {
       words: totalWords,
@@ -995,7 +1002,7 @@ class ProfessionalPdfGenerator {
         alignment: 'justify'
       },
       pageSize: 'A4',
-      pageMargins:,
+      pageMargins: [50, 75, 50, 70],
       header: (currentPage: number) => {
         if (currentPage <= 1) return {};
         return {
@@ -1015,7 +1022,7 @@ class ProfessionalPdfGenerator {
               width: 'auto'
             }
           ],
-          margin:
+          margin: [50, 22, 50, 0]
         };
       },
       footer: (currentPage: number) => {
@@ -1026,7 +1033,7 @@ class ProfessionalPdfGenerator {
               text: 'Pustakam Injin',
               fontSize: 7,
               color: '#999999',
-              margin:,
+              margin: [50, 0, 0, 0],
               width: '*'
             },
             {
@@ -1034,11 +1041,11 @@ class ProfessionalPdfGenerator {
               fontSize: 7,
               color: '#999999',
               alignment: 'right',
-              margin:,
+              margin: [0, 0, 50, 0],
               width: '*'
             }
           ],
-          margin:
+          margin: [0, 20, 0, 0]
         };
       },
       info: {
@@ -1057,6 +1064,9 @@ class ProfessionalPdfGenerator {
         const pdfDocGenerator = pdfMakeLib.createPdf(docDefinition);
         const filename = this.generateSafeFilename(project.title);
         
+        const hasEmojis = /[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu.test(
+          project.finalBook || ''
+        );
         const hasComplexFormatting = (project.finalBook || '').includes('```') ||
                                      (project.finalBook || '').includes('~~');
         
@@ -1078,14 +1088,14 @@ class ProfessionalPdfGenerator {
             </div>
             <div class="space-y-3 mb-6">
               <p class="text-sm text-gray-300 leading-relaxed">
-                Your document has been formatted with professional typography and perfect rendering.
+                Your document has been formatted with professional typography, emoji support, and perfect rendering.
               </p>
               <ul class="space-y-2 text-sm text-gray-400">
                 <li class="flex items-start gap-2"><span class="text-green-400 shrink-0">✓</span><span>Square-bordered code blocks with dynamic sizing</span></li>
                 <li class="flex items-start gap-2"><span class="text-green-400 shrink-0">✓</span><span>Auto-split for long code (no overflow)</span></li>
                 <li class="flex items-start gap-2"><span class="text-green-400 shrink-0">✓</span><span>All dashes normalized (no ? marks)</span></li>
                 <li class="flex items-start gap-2"><span class="text-green-400 shrink-0">✓</span><span>${this.fontFamily} font for consistent style</span></li>
-                <li class="flex items-start gap-2"><span class="text-red-400 shrink-0">✗</span><span>Emojis have been removed for compatibility</span></li>
+                ${hasEmojis ? '<li class="flex items-start gap-2"><span class="text-green-400 shrink-0">✓</span><span>Emojis preserved (copyable & searchable!)</span></li>' : ''}
                 ${hasComplexFormatting ? '<li class="flex items-start gap-2"><span class="text-blue-400 shrink-0">•</span><span>Advanced formatting optimized</span></li>' : ''}
               </ul>
             </div>
