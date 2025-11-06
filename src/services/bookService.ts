@@ -62,7 +62,6 @@ class BookGenerationService {
   private readonly MAX_MODULE_RETRIES = 5;
   private readonly RETRY_DELAY_BASE = 3000;
   private readonly MAX_RETRY_DELAY = 30000;
-  // ✅ CHANGE: Increased the base rate limit delay for more stability
   private readonly RATE_LIMIT_DELAY = 8000;
 
   updateSettings(settings: APISettings) {
@@ -1132,6 +1131,18 @@ ${session.preferences?.includePracticalExercises ? '### Practice Exercises' : ''
 
     this.updateProgress(book.id, { status: 'generating_content', progress: 15 });
 
+    // ✅ NEW: Add an initial delay specifically for OpenRouter to prevent immediate rate-limiting.
+    if (this.settings.selectedProvider === 'openrouter') {
+      const initialDelay = 5000; // 5 seconds
+      console.log(`OpenRouter provider selected. Waiting for ${initialDelay / 1000} seconds before starting generation...`);
+      this.updateGenerationStatus(book.id, {
+        status: 'generating',
+        totalProgress: 0,
+        logMessage: `Waiting ${initialDelay / 1000}s to avoid rate limits...`,
+      });
+      await sleep(initialDelay);
+    }
+
     for (let i = 0; i < modulesToGenerate.length; i++) {
       const roadmapModule = modulesToGenerate[i];
       
@@ -1258,20 +1269,18 @@ ${session.preferences?.includePracticalExercises ? '### Practice Exercises' : ''
           this.updateProgress(book.id, { modules: [...completedModules] });
         }
 
-        // ✅ CHANGE: Add provider-specific delay after each request
         if (i < modulesToGenerate.length - 1) {
           if (this.settings.selectedProvider === 'openrouter') {
-            // This is a free tier with strict rate limits, so we wait longer.
-            const openRouterDelay = 15000; // 15 seconds
+            // ✅ CHANGE: Increased intra-module delay for OpenRouter to 20 seconds for extra safety.
+            const openRouterDelay = 20000; // 20 seconds
             console.log(`OpenRouter provider selected. Waiting for ${openRouterDelay / 1000} seconds to respect rate limits.`);
             this.updateGenerationStatus(book.id, {
-              ...this.generationStatus,
               status: 'generating',
+              totalProgress: 0,
               logMessage: `Waiting ${openRouterDelay / 1000}s to respect OpenRouter's rate limit...`,
             });
             await sleep(openRouterDelay);
           } else {
-            // Other providers are faster, so we use a shorter delay.
             await sleep(1000); 
           }
         }
@@ -1441,9 +1450,8 @@ ${session.preferences?.includePracticalExercises ? '### Practice Exercises' : ''
         updatedModules.push(newModule);
         this.updateProgress(book.id, { modules: [...updatedModules] });
         
-        // ✅ CHANGE: Add provider-specific delay here as well for retries
         if (this.settings.selectedProvider === 'openrouter') {
-          const openRouterDelay = 15000;
+          const openRouterDelay = 20000;
           console.log(`OpenRouter provider selected. Waiting for ${openRouterDelay / 1000} seconds during retry.`);
           await sleep(openRouterDelay);
         } else {
