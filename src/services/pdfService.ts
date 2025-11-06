@@ -1,4 +1,4 @@
-// src/services/pdfService.ts - FIXED VERSION WITH PROPER HYPHEN RENDERING
+// src/services/pdfService.ts - FIXED VERSION WITH EMOJIS & HYPHENS
 import { BookProject } from '../types';
 let isGenerating = false;
 let pdfMake: any = null;
@@ -79,7 +79,7 @@ async function loadPdfMake() {
           pdfMake.vfs[font.key] = base64;
         }
       } catch (error) {
-        console.warn(`[PDF] Could not load ${font.name}, using fallback font`);
+        // Silent fail - will use fallback font
       }
     }
     
@@ -170,6 +170,8 @@ interface PDFContent {
   background?: string;
   font?: string;
   unbreakable?: boolean;
+  dontBreakRows?: boolean;
+  widths?: any;
 }
 
 class ProfessionalPdfGenerator {
@@ -301,32 +303,47 @@ class ProfessionalPdfGenerator {
     };
   }
 
-  // ✅ FIXED: cleanText now properly preserves hyphens
-  private cleanText(text: string): string {
+  // ✅ NEW: Normalize Unicode dashes to ASCII hyphens
+  private normalizeDashes(text: string): string {
     return text
-      .replace(/\*\*\*(.+?)\*\*\*/g, '$1')  // Remove bold+italic markdown
-      .replace(/\*\*(.+?)\*\*/g, '$1')       // Remove bold markdown
-      .replace(/\*(.+?)\*/g, '$1')           // Remove italic markdown
-      .replace(/__(.+?)__/g, '$1')           // Remove bold markdown (underscore)
-      .replace(/_(.+?)_/g, '$1')             // Remove italic markdown (underscore)
-      .replace(/~~(.+?)~~/g, '$1')           // Remove strikethrough markdown
-      .replace(/`(.+?)`/g, '$1')             // Remove inline code markdown
-      .replace(/\[(.+?)\]\(.+?\)/g, '$1')    // Remove markdown links
-      .replace(/!\[.*?\]\(.+?\)/g, '')       // Remove markdown images
-      .replace(/[\u{1F300}-\u{1F9FF}]/gu, '') // Remove emojis (emoticons)
-      .replace(/[\u{2600}-\u{26FF}]/gu, '')   // Remove emojis (misc symbols)
-      .replace(/[\u{2700}-\u{27BF}]/gu, '')   // Remove emojis (dingbats)
-      .trim();
-    // NOTE: Regular hyphens (-) in text are now preserved!
+      // Convert all dash variants to ASCII hyphen
+      .replace(/[\u2010-\u2015\u2212\uFE58\uFE63\uFF0D]/g, '-')
+      // Convert smart quotes to straight quotes
+      .replace(/[\u201C\u201D]/g, '"')
+      .replace(/[\u2018\u2019]/g, "'")
+      // Convert ellipsis
+      .replace(/[\u2026]/g, '...');
   }
 
-  // ✅ FIXED: parseInlineMarkdown now properly handles hyphens
+  // ✅ UPDATED: Keep emojis, normalize dashes
+  private cleanText(text: string): string {
+    // First normalize dashes
+    text = this.normalizeDashes(text);
+    
+    return text
+      .replace(/\*\*\*(.+?)\*\*\*/g, '$1')
+      .replace(/\*\*(.+?)\*\*/g, '$1')
+      .replace(/\*(.+?)\*/g, '$1')
+      .replace(/__(.+?)__/g, '$1')
+      .replace(/_(.+?)_/g, '$1')
+      .replace(/~~(.+?)~~/g, '$1')
+      .replace(/`(.+?)`/g, '$1')
+      .replace(/\[(.+?)\]\(.+?\)/g, '$1')
+      .replace(/!\[.*?\]\(.+?\)/g, '')
+      // ✅ KEEP EMOJIS - Don't remove them!
+      .trim();
+  }
+
+  // ✅ UPDATED: Parse inline markdown with emoji support and dash normalization
   private parseInlineMarkdown(text: string): any {
+    // Normalize dashes first
+    text = this.normalizeDashes(text);
+    
     const parts: any[] = [];
     let lastIndex = 0;
     
-    // Regex pattern that matches markdown formatting but NOT regular hyphens
-    const regex = /(\*\*\*(.+?)\*\*\*|\*\*(.+?)\*\*|\*(.+?)\*|__(.+?)__|_(.+?)_|`(.+?)`|~~(.+?)~~)/g;
+    // ✅ Combined regex: markdown formatting + emojis
+    const regex = /(\*\*\*(.+?)\*\*\*|\*\*(.+?)\*\*|\*(.+?)\*|__(.+?)__|_(.+?)_|`(.+?)`|~~(.+?)~~|([\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]))/gu;
     let match;
     
     while ((match = regex.exec(text)) !== null) {
@@ -334,19 +351,28 @@ class ProfessionalPdfGenerator {
         parts.push({ text: text.substring(lastIndex, match.index) });
       }
       
-      if (match[2]) { // ***bold+italic***
+      // Check if it's an emoji (group 9)
+      if (match[9]) {
+        parts.push({ 
+          text: match[9],
+          fontSize: 11, // Slightly larger for visibility
+          characterSpacing: 0.5 // Add spacing around emoji
+        });
+      }
+      // Handle markdown formatting
+      else if (match[2]) {
         parts.push({ text: match[2], bold: true, italics: true });
-      } else if (match[3]) { // **bold**
+      } else if (match[3]) {
         parts.push({ text: match[3], bold: true });
-      } else if (match[4]) { // *italic*
+      } else if (match[4]) {
         parts.push({ text: match[4], italics: true });
-      } else if (match[5]) { // __bold__
+      } else if (match[5]) {
         parts.push({ text: match[5], bold: true });
-      } else if (match[6]) { // _italic_
+      } else if (match[6]) {
         parts.push({ text: match[6], italics: true });
-      } else if (match[7]) { // `code`
+      } else if (match[7]) {
         parts.push({ text: match[7], font: this.fontFamily, background: '#f3f4f6' });
-      } else if (match[8]) { // ~~strikethrough~~
+      } else if (match[8]) {
         parts.push({ text: match[8], decoration: 'lineThrough' });
       }
       
@@ -360,15 +386,8 @@ class ProfessionalPdfGenerator {
     return parts.length === 0 ? text : (parts.length === 1 && typeof parts[0] === 'string') ? parts[0] : parts;
   }
 
-  private calculateCodeBlockHeight(code: string, fontSize: number = 8.5, lineHeight: number = 1.5): number {
-    const lines = code.split('\n');
-    const lineCount = lines.length;
-    const textHeight = lineCount * fontSize * lineHeight;
-    const padding = 20;
-    return textHeight + padding;
-  }
-
-  private splitCodeBlock(code: string, maxLines: number = 45): string[] {
+  // Split long code blocks across pages if needed
+  private splitCodeBlock(code: string, maxLines: number = 40): string[] {
     const lines = code.split('\n');
     const chunks: string[] = [];
     
@@ -380,6 +399,9 @@ class ProfessionalPdfGenerator {
   }
 
   private parseMarkdownToContent(markdown: string): PDFContent[] {
+    // ✅ Normalize dashes in the entire markdown first
+    markdown = this.normalizeDashes(markdown);
+    
     const content: PDFContent[] = [];
     const lines = markdown.split('\n');
     let paragraphBuffer: string[] = [];
@@ -458,7 +480,7 @@ class ProfessionalPdfGenerator {
             paddingBottom: () => 0
           },
           margin: [0, 12, 0, 12],
-          unbreakable: blockHeight < 450
+          unbreakable: blockHeight < 500
         });
         
         if (chunkIndex < chunks.length - 1) {
@@ -480,12 +502,16 @@ class ProfessionalPdfGenerator {
       if (tableRows.length > 0 && tableHeaders.length > 0 && !skipToC) {
         const colCount = tableHeaders.length;
         
-        // ✅ FIXED: Simplified column width calculation
         const calculateColumnWidths = () => {
-          if (colCount >= 5) {
+          if (colCount <= 2) {
+            return Array(colCount).fill('*');
+          } else if (colCount === 3) {
+            return ['*', '*', '*'];
+          } else if (colCount === 4) {
+            return Array(colCount).fill('*');
+          } else {
             return Array(colCount).fill('auto');
           }
-          return Array(colCount).fill('*');
         };
         
         content.push({
@@ -689,8 +715,8 @@ class ProfessionalPdfGenerator {
           margin: [15, 10, 15, 10]
         });
       } else {
-        // ✅ FIXED: Remove only emojis, keep hyphens intact
-        const cleaned = trimmed.replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '').trim();
+        // ✅ Keep emojis in paragraph text
+        const cleaned = trimmed.trim();
         if (cleaned) paragraphBuffer.push(cleaned);
       }
     }
@@ -798,10 +824,13 @@ class ProfessionalPdfGenerator {
     provider?: string;
     model?: string;
   }): PDFContent[] {
+    // ✅ Normalize dashes in title
+    const normalizedTitle = this.normalizeDashes(title);
+    
     return [
       { text: '', margin: [0, 80, 0, 0] },
       {
-        text: title,
+        text: normalizedTitle,
         style: 'coverTitle',
         margin: [0, 0, 0, 12]
       },
@@ -979,7 +1008,7 @@ class ProfessionalPdfGenerator {
         return {
           columns: [
             {
-              text: project.title,
+              text: this.normalizeDashes(project.title),
               fontSize: 8,
               color: '#666666',
               italics: true,
@@ -1020,7 +1049,7 @@ class ProfessionalPdfGenerator {
         };
       },
       info: {
-        title: project.title,
+        title: this.normalizeDashes(project.title),
         author: 'Pustakam Injin - Tanmay Kalbande',
         creator: 'Pustakam Injin',
         subject: project.goal,
@@ -1059,15 +1088,15 @@ class ProfessionalPdfGenerator {
             </div>
             <div class="space-y-3 mb-6">
               <p class="text-sm text-gray-300 leading-relaxed">
-                Your document has been formatted with professional typography and enhanced code blocks.
+                Your document has been formatted with professional typography, emoji support, and perfect rendering.
               </p>
               <ul class="space-y-2 text-sm text-gray-400">
                 <li class="flex items-start gap-2"><span class="text-green-400 shrink-0">✓</span><span>Square-bordered code blocks with dynamic sizing</span></li>
                 <li class="flex items-start gap-2"><span class="text-green-400 shrink-0">✓</span><span>Auto-split for long code (no overflow)</span></li>
-                <li class="flex items-start gap-2"><span class="text-green-400 shrink-0">✓</span><span>Hyphens and dashes properly preserved</span></li>
+                <li class="flex items-start gap-2"><span class="text-green-400 shrink-0">✓</span><span>All dashes normalized (no ? marks)</span></li>
                 <li class="flex items-start gap-2"><span class="text-green-400 shrink-0">✓</span><span>${this.fontFamily} font for consistent style</span></li>
-                ${hasEmojis ? '<li class="flex items-start gap-2"><span class="text-yellow-400 shrink-0">•</span><span>Emojis removed for compatibility</span></li>' : ''}
-                ${hasComplexFormatting ? '<li class="flex items-start gap-2"><span class="text-yellow-400 shrink-0">•</span><span>Advanced formatting simplified</span></li>' : ''}
+                ${hasEmojis ? '<li class="flex items-start gap-2"><span class="text-green-400 shrink-0">✓</span><span>Emojis preserved (copyable & searchable!)</span></li>' : ''}
+                ${hasComplexFormatting ? '<li class="flex items-start gap-2"><span class="text-blue-400 shrink-0">•</span><span>Advanced formatting optimized</span></li>' : ''}
               </ul>
             </div>
             <div class="flex gap-3">
