@@ -45,6 +45,7 @@ class BookGenerationService {
     googleApiKey: '',
     zhipuApiKey: '',
     mistralApiKey: '',
+    groqApiKey: '', // ✅ NEW
     selectedProvider: 'google',
     selectedModel: 'gemini-2.5-flash'
   };
@@ -201,11 +202,13 @@ class BookGenerationService {
     return { isValid: errors.length === 0, errors };
   }
 
+  // ✅ ADDED/UPDATED: getApiKeyForProvider method
   private getApiKeyForProvider(provider: string): string | null {
     switch (provider) {
       case 'google': return this.settings.googleApiKey || null;
       case 'mistral': return this.settings.mistralApiKey || null;
       case 'zhipu': return this.settings.zhipuApiKey || null;
+      case 'groq': return this.settings.groqApiKey || null; // ✅ NEW
       default: return null;
     }
   }
@@ -290,6 +293,15 @@ class BookGenerationService {
         name: 'GLM 4.5 Flash'
       });
     }
+
+    // ✅ NEW: Add Groq alternative
+    if (this.settings.groqApiKey && this.settings.selectedProvider !== 'groq') {
+      alternatives.push({
+        provider: 'groq',
+        model: 'llama-3.3-70b-versatile',
+        name: 'Groq Llama 3.3 70B Versatile'
+      });
+    }
     
     return alternatives;
   }
@@ -331,6 +343,7 @@ class BookGenerationService {
     this.userRetryDecisions.set(bookId, decision);
   }
 
+  // ✅ UPDATED: generateWithAI switch statement
   private async generateWithAI(prompt: string, bookId?: string, onChunk?: (chunk: string) => void): Promise<string> {
     const validation = this.validateSettings();
     if (!validation.isValid) {
@@ -361,6 +374,9 @@ class BookGenerationService {
           break;
         case 'zhipu': 
           result = await this.generateWithZhipu(prompt, abortController.signal, onChunk); 
+          break;
+        case 'groq': // ✅ NEW
+          result = await this.generateWithGroq(prompt, abortController.signal, onChunk); 
           break;
         default: 
           throw new Error(`Unsupported provider: ${this.settings.selectedProvider}`);
@@ -606,6 +622,91 @@ class BookGenerationService {
       }
     }
     throw new Error('ZhipuAI API failed after retries');
+  }
+
+  // ✅ ADDED: New Groq generation method
+  private async generateWithGroq(prompt: string, signal?: AbortSignal, onChunk?: (chunk: string) => void): Promise<string> {
+    const apiKey = this.getApiKey();
+    const model = this.settings.selectedModel;
+    const maxRetries = 3;
+    let attempt = 0;
+
+    while (attempt < maxRetries) {
+      try {
+        const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`
+          },
+          body: JSON.stringify({
+            model: model,
+            messages: [{ role: 'user', content: prompt }],
+            temperature: 0.7,
+            max_tokens: 8192,
+            stream: true
+          }),
+          signal
+        });
+
+        if (response.status === 429 || response.status === 503) {
+          const delay = Math.pow(2, attempt) * 1000;
+          await sleep(delay);
+          attempt++;
+          continue;
+        }
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData?.error?.message || `Groq API Error: ${response.status}`);
+        }
+
+        if (!response.body) throw new Error('Response body is null');
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let fullContent = '';
+        let buffer = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+
+          for (const line of lines) {
+            const trimmedLine = line.trim();
+            if (trimmedLine.startsWith('data: ')) {
+              const jsonStr = trimmedLine.substring(6);
+              if (jsonStr === '[DONE]') continue;
+
+              try {
+                const data = JSON.parse(jsonStr);
+                const textPart = data?.choices?.[0]?.delta?.content || '';
+                if (textPart) {
+                  fullContent += textPart;
+                  if (onChunk) onChunk(textPart);
+                }
+              } catch (parseError) {
+                // Ignore parse errors for individual chunks
+              }
+            }
+          }
+        }
+
+        if (!fullContent) throw new Error('No content generated');
+        return fullContent;
+
+      } catch (error) {
+        if (error instanceof Error && error.name === 'AbortError') throw error;
+        attempt++;
+        if (attempt >= maxRetries) throw error;
+        await sleep(Math.pow(2, attempt) * 1000);
+      }
+    }
+    throw new Error('Groq API failed after retries');
   }
 
   async generateRoadmap(session: BookSession, bookId: string): Promise<BookRoadmap> {
@@ -1315,11 +1416,13 @@ ${session.preferences?.includePracticalExercises ? '### Practice Exercises' : ''
     }
   }
 
+  // ✅ UPDATED: getProviderDisplayName method
   private getProviderDisplayName(): string {
     const names: Record<string, string> = { 
       google: 'Google Gemini', 
       mistral: 'Mistral AI', 
-      zhipu: 'ZhipuAI' 
+      zhipu: 'ZhipuAI',
+      groq: 'Groq' // ✅ NEW
     };
     return names[this.settings.selectedProvider] || 'AI';
   }
