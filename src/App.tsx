@@ -199,7 +199,7 @@ function App() {
     };
   }, [isMobile, sidebarOpen]);
 
-  const hasApiKey = !!(settings.googleApiKey || settings.mistralApiKey || settings.zhipuApiKey);
+  const hasApiKey = !!(settings.googleApiKey || settings.mistralApiKey || settings.zhipuApiKey || settings.groqApiKey); // ✅ UPDATED
 
   const getAlternativeModels = () => {
     const alternatives: Array<{provider: ModelProvider; model: string; name: string}> = [];
@@ -225,6 +225,15 @@ function App() {
         provider: 'zhipu',
         model: 'glm-4.5-flash',
         name: 'GLM 4.5 Flash'
+      });
+    }
+
+    // ✅ NEW: Add Groq alternatives
+    if (settings.groqApiKey && settings.selectedProvider !== 'groq') {
+      alternatives.push({
+        provider: 'groq',
+        model: 'llama-3.3-70b-versatile',
+        name: 'Groq Llama 3.3 70B'
       });
     }
 
@@ -792,4 +801,4 @@ function App() {
   );
 }
 
-export default App; 
+export default App;
