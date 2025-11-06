@@ -182,6 +182,12 @@ export function SettingsModal({ isOpen, onClose, settings, onSaveSettings }: Set
       name: 'ZhipuAI',
       url: 'https://open.bigmodel.cn/usercenter/apikeys',
       description: 'For GLM models (Chinese AI provider)'
+    },
+    { // ✅ NEW
+      id: 'groqApiKey' as keyof APISettings,
+      name: 'Groq',
+      url: 'https://console.groq.com/keys',
+      description: 'For Llama, GPT OSS, and Kimi models'
     }
   ];
 
