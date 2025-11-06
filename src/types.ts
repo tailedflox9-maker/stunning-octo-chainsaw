@@ -1,5 +1,5 @@
 // src/types.ts
-export type ModelProvider = 'google' | 'mistral' | 'zhipu' | 'groq';
+export type ModelProvider = 'google' | 'mistral' | 'zhipu' | 'groq' | 'openrouter';
 
 export type ModelID =
   // Google Gemini Models
@@ -21,13 +21,20 @@ export type ModelID =
   | 'openai/gpt-oss-120b'
   | 'openai/gpt-oss-20b'
   | 'moonshotai/kimi-k2-instruct-0905'
-  | 'moonshotai/kimi-k2-instruct';
+  | 'moonshotai/kimi-k2-instruct'
+  // OpenRouter Free Models (✅ NEW)
+  | 'deepseek/deepseek-chat-v3.1:free'
+  | 'deepseek/deepseek-r1-0528:free'
+  | 'microsoft/mai-ds-r1:free'
+  | 'deepseek/deepseek-r1:free'
+  | 'tngtech/deepseek-r1t2-chimera:free';
 
 export interface APISettings {
   googleApiKey: string;
   zhipuApiKey: string;
   mistralApiKey: string;
-  groqApiKey: string; // ✅ NEW
+  groqApiKey: string;
+  openrouterApiKey: string; // ✅ NEW
   selectedModel: ModelID;
   selectedProvider: ModelProvider;
 }
