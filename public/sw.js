@@ -1,5 +1,5 @@
 // IMPORTANT: Increment this version number with each deployment
-const CACHE_VERSION = 'ai-tutor-v1.3.7'; // Change v1 to v2, v3, etc. on each deploy
+const CACHE_VERSION = 'ai-tutor-v1.3.8'; // Change v1 to v2, v3, etc. on each deploy
 const CACHE_NAME = `ai-tutor-${CACHE_VERSION}`;
 
 const urlsToCache = [
