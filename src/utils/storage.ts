@@ -8,8 +8,7 @@ const defaultSettings: APISettings = {
   googleApiKey: '',
   zhipuApiKey: '',
   mistralApiKey: '',
-  groqApiKey: '',
-  openrouterApiKey: '', // ✅ NEW
+  groqApiKey: '', // ✅ NEW
   selectedProvider: 'google',
   selectedModel: 'gemini-2.5-flash',
 };
@@ -27,25 +26,24 @@ export const storageUtils = {
         ...parsed,
       };
 
-      // ✅ UPDATED: Add openrouter to valid providers
-      if (!settings.selectedProvider || !['google', 'mistral', 'zhipu', 'groq', 'openrouter'].includes(settings.selectedProvider)) {
+      // ✅ UPDATED: Add groq to valid providers
+      if (!settings.selectedProvider || !['google', 'mistral', 'zhipu', 'groq'].includes(settings.selectedProvider)) {
         console.warn('Invalid selectedProvider found in storage:', settings.selectedProvider);
         settings.selectedProvider = defaultSettings.selectedProvider;
       }
 
-      // ✅ UPDATED: Add OpenRouter models validation
+      // ✅ UPDATED: Add Groq models validation
       const validModels = {
         google: ['gemini-2.0-flash-lite', 'gemini-2.5-flash-lite', 'gemini-2.0-flash', 'gemini-2.5-flash', 'gemma-3-27b-it', 'gemini-2.5-pro'],
         mistral: ['mistral-small-latest', 'mistral-medium-latest', 'mistral-large-latest', 'pixtral-large-latest'],
         zhipu: ['glm-4.5-flash'],
-        groq: ['llama-3.3-70b-versatile', 'openai/gpt-oss-120b', 'openai/gpt-oss-20b', 'moonshotai/kimi-k2-instruct-0905', 'moonshotai/kimi-k2-instruct'],
-        openrouter: ['deepseek/deepseek-chat-v3.1:free', 'deepseek/deepseek-r1-0528:free', 'microsoft/mai-ds-r1:free', 'deepseek/deepseek-r1:free', 'tngtech/deepseek-r1t2-chimera:free']
+        groq: ['llama-3.3-70b-versatile', 'openai/gpt-oss-120b', 'openai/gpt-oss-20b', 'moonshotai/kimi-k2-instruct-0905', 'moonshotai/kimi-k2-instruct']
       };
 
       const providerModels = validModels[settings.selectedProvider];
-      if (!providerModels || !providerModels.includes(settings.selectedModel)) {
+      if (!providerModels.includes(settings.selectedModel)) {
         console.warn(`Invalid model ${settings.selectedModel} for provider ${settings.selectedProvider}`);
-        settings.selectedModel = providerModels ? providerModels[0] : defaultSettings.selectedModel;
+        settings.selectedModel = providerModels[0];
       }
 
       return settings;
@@ -58,7 +56,7 @@ export const storageUtils = {
 
   saveSettings(settings: APISettings): void {
     try {
-      if (!settings.selectedProvider || !['google', 'mistral', 'zhipu', 'groq', 'openrouter'].includes(settings.selectedProvider)) {
+      if (!settings.selectedProvider || !['google', 'mistral', 'zhipu', 'groq'].includes(settings.selectedProvider)) {
         console.error('Attempted to save invalid selectedProvider:', settings.selectedProvider);
         settings.selectedProvider = defaultSettings.selectedProvider;
       }
