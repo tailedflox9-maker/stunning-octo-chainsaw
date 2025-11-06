@@ -44,13 +44,9 @@ const ZhipuIcon = () => (
   <img src="/zhipu.svg" alt="ZhipuAI" className="w-5 h-5 filter brightness-0 invert" />
 );
 
+// ✅ ADD Groq Icon component (after other icon components)
 const GroqIcon = () => (
   <img src="/groq.svg" alt="Groq" className="w-5 h-5 filter brightness-0 invert" />
-);
-
-// ✅ ADD OpenRouter Icon component (after GroqIcon)
-const OpenRouterIcon = () => (
-  <img src="/openrouter.svg" alt="OpenRouter" className="w-5 h-5 filter brightness-0 invert" />
 );
 
 // Enhanced model configuration with all models
@@ -84,7 +80,7 @@ const modelConfig = {
       { id: 'glm-4.5-flash', name: 'GLM 4.5 Flash', description: 'Chinese AI model' },
     ]
   },
-  groq: {
+  groq: { // ✅ NEW
     name: "Groq",
     icon: GroqIcon,
     models: [
@@ -93,17 +89,6 @@ const modelConfig = {
       { id: 'openai/gpt-oss-20b', name: 'GPT OSS 20B', description: 'Medium open-source model' },
       { id: 'moonshotai/kimi-k2-instruct-0905', name: 'Kimi K2 Instruct (0905)', description: 'Moonshot AI instruction model' },
       { id: 'moonshotai/kimi-k2-instruct', name: 'Kimi K2 Instruct', description: 'Moonshot AI latest' },
-    ]
-  },
-  openrouter: { // ✅ NEW - FREE MODELS!
-    name: "OpenRouter",
-    icon: OpenRouterIcon,
-    models: [
-      { id: 'deepseek/deepseek-r1:free', name: 'DeepSeek R1 (FREE) 🔥', description: 'State-of-the-art reasoning model' },
-      { id: 'deepseek/deepseek-r1-0528:free', name: 'DeepSeek R1 0528 (FREE)', description: 'Latest R1 version' },
-      { id: 'deepseek/deepseek-chat-v3.1:free', name: 'DeepSeek Chat v3.1 (FREE)', description: 'Advanced chat model' },
-      { id: 'microsoft/mai-ds-r1:free', name: 'Microsoft MAI DS-R1 (FREE) 🚀', description: 'Microsoft reasoning model' },
-      { id: 'tngtech/deepseek-r1t2-chimera:free', name: 'DeepSeek R1T2 Chimera (FREE)', description: 'Hybrid reasoning model' },
     ]
   }
 };
@@ -137,8 +122,7 @@ export function Sidebar({
       case 'google': return !!settings.googleApiKey;
       case 'mistral': return !!settings.mistralApiKey;
       case 'zhipu': return !!settings.zhipuApiKey;
-      case 'groq': return !!settings.groqApiKey;
-      case 'openrouter': return !!settings.openrouterApiKey; // ✅ NEW
+      case 'groq': return !!settings.groqApiKey; // ✅ NEW
       default: return false;
     }
   };
