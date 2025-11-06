@@ -44,6 +44,11 @@ const ZhipuIcon = () => (
   <img src="/zhipu.svg" alt="ZhipuAI" className="w-5 h-5 filter brightness-0 invert" />
 );
 
+// ✅ ADD Groq Icon component (after other icon components)
+const GroqIcon = () => (
+  <img src="/groq.svg" alt="Groq" className="w-5 h-5 filter brightness-0 invert" />
+);
+
 // Enhanced model configuration with all models
 const modelConfig = {
   google: {
@@ -73,6 +78,17 @@ const modelConfig = {
     icon: ZhipuIcon,
     models: [
       { id: 'glm-4.5-flash', name: 'GLM 4.5 Flash', description: 'Chinese AI model' },
+    ]
+  },
+  groq: { // ✅ NEW
+    name: "Groq",
+    icon: GroqIcon,
+    models: [
+      { id: 'llama-3.3-70b-versatile', name: 'Llama 3.3 70B Versatile', description: 'Powerful & versatile' },
+      { id: 'openai/gpt-oss-120b', name: 'GPT OSS 120B', description: 'Large open-source model' },
+      { id: 'openai/gpt-oss-20b', name: 'GPT OSS 20B', description: 'Medium open-source model' },
+      { id: 'moonshotai/kimi-k2-instruct-0905', name: 'Kimi K2 Instruct (0905)', description: 'Moonshot AI instruction model' },
+      { id: 'moonshotai/kimi-k2-instruct', name: 'Kimi K2 Instruct', description: 'Moonshot AI latest' },
     ]
   }
 };
@@ -106,6 +122,7 @@ export function Sidebar({
       case 'google': return !!settings.googleApiKey;
       case 'mistral': return !!settings.mistralApiKey;
       case 'zhipu': return !!settings.zhipuApiKey;
+      case 'groq': return !!settings.groqApiKey; // ✅ NEW
       default: return false;
     }
   };
