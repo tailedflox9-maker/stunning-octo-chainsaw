@@ -8,6 +8,7 @@ const defaultSettings: APISettings = {
   googleApiKey: '',
   zhipuApiKey: '',
   mistralApiKey: '',
+  groqApiKey: '', // ✅ NEW
   selectedProvider: 'google',
   selectedModel: 'gemini-2.5-flash',
 };
@@ -20,43 +21,42 @@ export const storageUtils = {
 
       const parsed = JSON.parse(stored);
 
-      // Enhanced validation with logging
       const settings: APISettings = {
         ...defaultSettings,
         ...parsed,
       };
 
-      // Validate selectedProvider with better error handling
-      if (!settings.selectedProvider || !['google', 'mistral', 'zhipu'].includes(settings.selectedProvider)) {
+      // ✅ UPDATED: Add groq to valid providers
+      if (!settings.selectedProvider || !['google', 'mistral', 'zhipu', 'groq'].includes(settings.selectedProvider)) {
         console.warn('Invalid selectedProvider found in storage:', settings.selectedProvider);
         settings.selectedProvider = defaultSettings.selectedProvider;
       }
 
-      // Validate selectedModel exists for the provider
+      // ✅ UPDATED: Add Groq models validation
       const validModels = {
         google: ['gemini-2.0-flash-lite', 'gemini-2.5-flash-lite', 'gemini-2.0-flash', 'gemini-2.5-flash', 'gemma-3-27b-it', 'gemini-2.5-pro'],
         mistral: ['mistral-small-latest', 'mistral-medium-latest', 'mistral-large-latest', 'pixtral-large-latest'],
-        zhipu: ['glm-4.5-flash']
+        zhipu: ['glm-4.5-flash'],
+        groq: ['llama-3.3-70b-versatile', 'openai/gpt-oss-120b', 'openai/gpt-oss-20b', 'moonshotai/kimi-k2-instruct-0905', 'moonshotai/kimi-k2-instruct']
       };
 
       const providerModels = validModels[settings.selectedProvider];
       if (!providerModels.includes(settings.selectedModel)) {
         console.warn(`Invalid model ${settings.selectedModel} for provider ${settings.selectedProvider}`);
-        settings.selectedModel = providerModels[0]; // Use first valid model
+        settings.selectedModel = providerModels[0];
       }
 
       return settings;
     } catch (error) {
       console.error('Error loading settings:', error);
-      localStorage.removeItem(SETTINGS_KEY); // Clear corrupted settings
+      localStorage.removeItem(SETTINGS_KEY);
       return defaultSettings;
     }
   },
 
   saveSettings(settings: APISettings): void {
     try {
-      // Validate before saving
-      if (!settings.selectedProvider || !['google', 'mistral', 'zhipu'].includes(settings.selectedProvider)) {
+      if (!settings.selectedProvider || !['google', 'mistral', 'zhipu', 'groq'].includes(settings.selectedProvider)) {
         console.error('Attempted to save invalid selectedProvider:', settings.selectedProvider);
         settings.selectedProvider = defaultSettings.selectedProvider;
       }
