@@ -45,8 +45,7 @@ class BookGenerationService {
     googleApiKey: '',
     zhipuApiKey: '',
     mistralApiKey: '',
-    groqApiKey: '',
-    openrouterApiKey: '', 
+    groqApiKey: '', // ✅ NEW
     selectedProvider: 'google',
     selectedModel: 'gemini-2.5-flash'
   };
@@ -62,7 +61,7 @@ class BookGenerationService {
   private readonly MAX_MODULE_RETRIES = 5;
   private readonly RETRY_DELAY_BASE = 3000;
   private readonly MAX_RETRY_DELAY = 30000;
-  private readonly RATE_LIMIT_DELAY = 8000;
+  private readonly RATE_LIMIT_DELAY = 5000;
 
   updateSettings(settings: APISettings) {
     this.settings = settings;
@@ -203,13 +202,13 @@ class BookGenerationService {
     return { isValid: errors.length === 0, errors };
   }
 
+  // ✅ ADDED/UPDATED: getApiKeyForProvider method
   private getApiKeyForProvider(provider: string): string | null {
     switch (provider) {
       case 'google': return this.settings.googleApiKey || null;
       case 'mistral': return this.settings.mistralApiKey || null;
       case 'zhipu': return this.settings.zhipuApiKey || null;
-      case 'groq': return this.settings.groqApiKey || null;
-      case 'openrouter': return this.settings.openrouterApiKey || null;
+      case 'groq': return this.settings.groqApiKey || null; // ✅ NEW
       default: return null;
     }
   }
@@ -295,19 +294,12 @@ class BookGenerationService {
       });
     }
 
+    // ✅ NEW: Add Groq alternative
     if (this.settings.groqApiKey && this.settings.selectedProvider !== 'groq') {
       alternatives.push({
         provider: 'groq',
         model: 'llama-3.3-70b-versatile',
         name: 'Groq Llama 3.3 70B Versatile'
-      });
-    }
-
-    if (this.settings.openrouterApiKey && this.settings.selectedProvider !== 'openrouter') {
-      alternatives.push({
-        provider: 'openrouter',
-        model: 'deepseek/deepseek-r1:free',
-        name: 'OpenRouter DeepSeek R1 (FREE)'
       });
     }
     
@@ -351,6 +343,7 @@ class BookGenerationService {
     this.userRetryDecisions.set(bookId, decision);
   }
 
+  // ✅ UPDATED: generateWithAI switch statement
   private async generateWithAI(prompt: string, bookId?: string, onChunk?: (chunk: string) => void): Promise<string> {
     const validation = this.validateSettings();
     if (!validation.isValid) {
@@ -382,11 +375,8 @@ class BookGenerationService {
         case 'zhipu': 
           result = await this.generateWithZhipu(prompt, abortController.signal, onChunk); 
           break;
-        case 'groq':
+        case 'groq': // ✅ NEW
           result = await this.generateWithGroq(prompt, abortController.signal, onChunk); 
-          break;
-        case 'openrouter':
-          result = await this.generateWithOpenRouter(prompt, abortController.signal, onChunk); 
           break;
         default: 
           throw new Error(`Unsupported provider: ${this.settings.selectedProvider}`);
@@ -634,6 +624,7 @@ class BookGenerationService {
     throw new Error('ZhipuAI API failed after retries');
   }
 
+  // ✅ ADDED: New Groq generation method
   private async generateWithGroq(prompt: string, signal?: AbortSignal, onChunk?: (chunk: string) => void): Promise<string> {
     const apiKey = this.getApiKey();
     const model = this.settings.selectedModel;
@@ -716,92 +707,6 @@ class BookGenerationService {
       }
     }
     throw new Error('Groq API failed after retries');
-  }
-
-  private async generateWithOpenRouter(prompt: string, signal?: AbortSignal, onChunk?: (chunk: string) => void): Promise<string> {
-    const apiKey = this.getApiKey();
-    const model = this.settings.selectedModel;
-    const maxRetries = 3;
-    let attempt = 0;
-
-    while (attempt < maxRetries) {
-      try {
-        const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiKey}`,
-            'HTTP-Referer': window.location.href, // Required by OpenRouter
-            'X-Title': 'Pustakam AI Book Generator' // Optional: for usage tracking
-          },
-          body: JSON.stringify({
-            model: model,
-            messages: [{ role: 'user', content: prompt }],
-            temperature: 0.7,
-            max_tokens: 8192,
-            stream: true
-          }),
-          signal
-        });
-
-        if (response.status === 429 || response.status === 503) {
-          const delay = Math.pow(2, attempt) * 1000;
-          await sleep(delay);
-          attempt++;
-          continue;
-        }
-
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          throw new Error(errorData?.error?.message || `OpenRouter API Error: ${response.status}`);
-        }
-
-        if (!response.body) throw new Error('Response body is null');
-
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let fullContent = '';
-        let buffer = '';
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split('\n');
-          buffer = lines.pop() || '';
-
-          for (const line of lines) {
-            const trimmedLine = line.trim();
-            if (trimmedLine.startsWith('data: ')) {
-              const jsonStr = trimmedLine.substring(6);
-              if (jsonStr === '[DONE]') continue;
-
-              try {
-                const data = JSON.parse(jsonStr);
-                const textPart = data?.choices?.[0]?.delta?.content || '';
-                if (textPart) {
-                  fullContent += textPart;
-                  if (onChunk) onChunk(textPart);
-                }
-              } catch (parseError) {
-                // Ignore parse errors for individual chunks
-              }
-            }
-          }
-        }
-
-        if (!fullContent) throw new Error('No content generated');
-        return fullContent;
-
-      } catch (error) {
-        if (error instanceof Error && error.name === 'AbortError') throw error;
-        attempt++;
-        if (attempt >= maxRetries) throw error;
-        await sleep(Math.pow(2, attempt) * 1000);
-      }
-    }
-    throw new Error('OpenRouter API failed after retries');
   }
 
   async generateRoadmap(session: BookSession, bookId: string): Promise<BookRoadmap> {
@@ -1131,18 +1036,6 @@ ${session.preferences?.includePracticalExercises ? '### Practice Exercises' : ''
 
     this.updateProgress(book.id, { status: 'generating_content', progress: 15 });
 
-    // ✅ NEW: Add an initial delay specifically for OpenRouter to prevent immediate rate-limiting.
-    if (this.settings.selectedProvider === 'openrouter') {
-      const initialDelay = 5000; // 5 seconds
-      console.log(`OpenRouter provider selected. Waiting for ${initialDelay / 1000} seconds before starting generation...`);
-      this.updateGenerationStatus(book.id, {
-        status: 'generating',
-        totalProgress: 0,
-        logMessage: `Waiting ${initialDelay / 1000}s to avoid rate limits...`,
-      });
-      await sleep(initialDelay);
-    }
-
     for (let i = 0; i < modulesToGenerate.length; i++) {
       const roadmapModule = modulesToGenerate[i];
       
@@ -1270,19 +1163,7 @@ ${session.preferences?.includePracticalExercises ? '### Practice Exercises' : ''
         }
 
         if (i < modulesToGenerate.length - 1) {
-          if (this.settings.selectedProvider === 'openrouter') {
-            // ✅ CHANGE: Increased intra-module delay for OpenRouter to 20 seconds for extra safety.
-            const openRouterDelay = 20000; // 20 seconds
-            console.log(`OpenRouter provider selected. Waiting for ${openRouterDelay / 1000} seconds to respect rate limits.`);
-            this.updateGenerationStatus(book.id, {
-              status: 'generating',
-              totalProgress: 0,
-              logMessage: `Waiting ${openRouterDelay / 1000}s to respect OpenRouter's rate limit...`,
-            });
-            await sleep(openRouterDelay);
-          } else {
-            await sleep(1000); 
-          }
+          await sleep(1000);
         }
 
       } catch (error) {
@@ -1449,14 +1330,7 @@ ${session.preferences?.includePracticalExercises ? '### Practice Exercises' : ''
 
         updatedModules.push(newModule);
         this.updateProgress(book.id, { modules: [...updatedModules] });
-        
-        if (this.settings.selectedProvider === 'openrouter') {
-          const openRouterDelay = 20000;
-          console.log(`OpenRouter provider selected. Waiting for ${openRouterDelay / 1000} seconds during retry.`);
-          await sleep(openRouterDelay);
-        } else {
-          await sleep(1000);
-        }
+        await sleep(1000);
 
       } catch (error) {
         if (error instanceof Error && error.message === 'GENERATION_PAUSED') {
@@ -1490,6 +1364,7 @@ ${session.preferences?.includePracticalExercises ? '### Practice Exercises' : ''
     }
   }
 
+  // ✅ FIXED: Clear pause flag when book is completed
   async assembleFinalBook(book: BookProject, session: BookSession): Promise<void> {
     this.updateProgress(book.id, { status: 'assembling', progress: 90 });
 
@@ -1521,6 +1396,7 @@ ${session.preferences?.includePracticalExercises ? '### Practice Exercises' : ''
 
       this.clearCheckpoint(book.id);
       
+      // ✅ FIX: Clear pause flag when book is completed
       try {
         localStorage.removeItem(`pause_flag_${book.id}`);
         console.log('✓ Cleared pause flag for completed book:', book.id);
@@ -1540,13 +1416,13 @@ ${session.preferences?.includePracticalExercises ? '### Practice Exercises' : ''
     }
   }
 
+  // ✅ UPDATED: getProviderDisplayName method
   private getProviderDisplayName(): string {
     const names: Record<string, string> = { 
       google: 'Google Gemini', 
       mistral: 'Mistral AI', 
       zhipu: 'ZhipuAI',
-      groq: 'Groq',
-      openrouter: 'OpenRouter'
+      groq: 'Groq' // ✅ NEW
     };
     return names[this.settings.selectedProvider] || 'AI';
   }
