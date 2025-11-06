@@ -62,7 +62,8 @@ class BookGenerationService {
   private readonly MAX_MODULE_RETRIES = 5;
   private readonly RETRY_DELAY_BASE = 3000;
   private readonly MAX_RETRY_DELAY = 30000;
-  private readonly RATE_LIMIT_DELAY = 5000;
+  // ✅ CHANGE: Increased the base rate limit delay for more stability
+  private readonly RATE_LIMIT_DELAY = 8000;
 
   updateSettings(settings: APISettings) {
     this.settings = settings;
@@ -203,14 +204,13 @@ class BookGenerationService {
     return { isValid: errors.length === 0, errors };
   }
 
-  // ✅ ADDED/UPDATED: getApiKeyForProvider method
   private getApiKeyForProvider(provider: string): string | null {
     switch (provider) {
       case 'google': return this.settings.googleApiKey || null;
       case 'mistral': return this.settings.mistralApiKey || null;
       case 'zhipu': return this.settings.zhipuApiKey || null;
       case 'groq': return this.settings.groqApiKey || null;
-      case 'openrouter': return this.settings.openrouterApiKey || null; // ✅ NEW
+      case 'openrouter': return this.settings.openrouterApiKey || null;
       default: return null;
     }
   }
@@ -352,7 +352,6 @@ class BookGenerationService {
     this.userRetryDecisions.set(bookId, decision);
   }
 
-  // ✅ UPDATED: generateWithAI switch statement
   private async generateWithAI(prompt: string, bookId?: string, onChunk?: (chunk: string) => void): Promise<string> {
     const validation = this.validateSettings();
     if (!validation.isValid) {
@@ -387,7 +386,7 @@ class BookGenerationService {
         case 'groq':
           result = await this.generateWithGroq(prompt, abortController.signal, onChunk); 
           break;
-        case 'openrouter': // ✅ NEW
+        case 'openrouter':
           result = await this.generateWithOpenRouter(prompt, abortController.signal, onChunk); 
           break;
         default: 
@@ -720,7 +719,6 @@ class BookGenerationService {
     throw new Error('Groq API failed after retries');
   }
 
-  // ✅ ADD: New OpenRouter generation method
   private async generateWithOpenRouter(prompt: string, signal?: AbortSignal, onChunk?: (chunk: string) => void): Promise<string> {
     const apiKey = this.getApiKey();
     const model = this.settings.selectedModel;
@@ -1260,8 +1258,22 @@ ${session.preferences?.includePracticalExercises ? '### Practice Exercises' : ''
           this.updateProgress(book.id, { modules: [...completedModules] });
         }
 
+        // ✅ CHANGE: Add provider-specific delay after each request
         if (i < modulesToGenerate.length - 1) {
-          await sleep(1000);
+          if (this.settings.selectedProvider === 'openrouter') {
+            // This is a free tier with strict rate limits, so we wait longer.
+            const openRouterDelay = 15000; // 15 seconds
+            console.log(`OpenRouter provider selected. Waiting for ${openRouterDelay / 1000} seconds to respect rate limits.`);
+            this.updateGenerationStatus(book.id, {
+              ...this.generationStatus,
+              status: 'generating',
+              logMessage: `Waiting ${openRouterDelay / 1000}s to respect OpenRouter's rate limit...`,
+            });
+            await sleep(openRouterDelay);
+          } else {
+            // Other providers are faster, so we use a shorter delay.
+            await sleep(1000); 
+          }
         }
 
       } catch (error) {
@@ -1428,7 +1440,15 @@ ${session.preferences?.includePracticalExercises ? '### Practice Exercises' : ''
 
         updatedModules.push(newModule);
         this.updateProgress(book.id, { modules: [...updatedModules] });
-        await sleep(1000);
+        
+        // ✅ CHANGE: Add provider-specific delay here as well for retries
+        if (this.settings.selectedProvider === 'openrouter') {
+          const openRouterDelay = 15000;
+          console.log(`OpenRouter provider selected. Waiting for ${openRouterDelay / 1000} seconds during retry.`);
+          await sleep(openRouterDelay);
+        } else {
+          await sleep(1000);
+        }
 
       } catch (error) {
         if (error instanceof Error && error.message === 'GENERATION_PAUSED') {
@@ -1512,14 +1532,13 @@ ${session.preferences?.includePracticalExercises ? '### Practice Exercises' : ''
     }
   }
 
-  // ✅ UPDATED: getProviderDisplayName method
   private getProviderDisplayName(): string {
     const names: Record<string, string> = { 
       google: 'Google Gemini', 
       mistral: 'Mistral AI', 
       zhipu: 'ZhipuAI',
       groq: 'Groq',
-      openrouter: 'OpenRouter' // ✅ NEW
+      openrouter: 'OpenRouter'
     };
     return names[this.settings.selectedProvider] || 'AI';
   }
