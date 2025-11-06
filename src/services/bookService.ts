@@ -45,7 +45,8 @@ class BookGenerationService {
     googleApiKey: '',
     zhipuApiKey: '',
     mistralApiKey: '',
-    groqApiKey: '', // ✅ NEW
+    groqApiKey: '',
+    openrouterApiKey: '', 
     selectedProvider: 'google',
     selectedModel: 'gemini-2.5-flash'
   };
@@ -208,7 +209,8 @@ class BookGenerationService {
       case 'google': return this.settings.googleApiKey || null;
       case 'mistral': return this.settings.mistralApiKey || null;
       case 'zhipu': return this.settings.zhipuApiKey || null;
-      case 'groq': return this.settings.groqApiKey || null; // ✅ NEW
+      case 'groq': return this.settings.groqApiKey || null;
+      case 'openrouter': return this.settings.openrouterApiKey || null; // ✅ NEW
       default: return null;
     }
   }
@@ -294,12 +296,19 @@ class BookGenerationService {
       });
     }
 
-    // ✅ NEW: Add Groq alternative
     if (this.settings.groqApiKey && this.settings.selectedProvider !== 'groq') {
       alternatives.push({
         provider: 'groq',
         model: 'llama-3.3-70b-versatile',
         name: 'Groq Llama 3.3 70B Versatile'
+      });
+    }
+
+    if (this.settings.openrouterApiKey && this.settings.selectedProvider !== 'openrouter') {
+      alternatives.push({
+        provider: 'openrouter',
+        model: 'deepseek/deepseek-r1:free',
+        name: 'OpenRouter DeepSeek R1 (FREE)'
       });
     }
     
@@ -375,8 +384,11 @@ class BookGenerationService {
         case 'zhipu': 
           result = await this.generateWithZhipu(prompt, abortController.signal, onChunk); 
           break;
-        case 'groq': // ✅ NEW
+        case 'groq':
           result = await this.generateWithGroq(prompt, abortController.signal, onChunk); 
+          break;
+        case 'openrouter': // ✅ NEW
+          result = await this.generateWithOpenRouter(prompt, abortController.signal, onChunk); 
           break;
         default: 
           throw new Error(`Unsupported provider: ${this.settings.selectedProvider}`);
@@ -624,7 +636,6 @@ class BookGenerationService {
     throw new Error('ZhipuAI API failed after retries');
   }
 
-  // ✅ ADDED: New Groq generation method
   private async generateWithGroq(prompt: string, signal?: AbortSignal, onChunk?: (chunk: string) => void): Promise<string> {
     const apiKey = this.getApiKey();
     const model = this.settings.selectedModel;
@@ -707,6 +718,93 @@ class BookGenerationService {
       }
     }
     throw new Error('Groq API failed after retries');
+  }
+
+  // ✅ ADD: New OpenRouter generation method
+  private async generateWithOpenRouter(prompt: string, signal?: AbortSignal, onChunk?: (chunk: string) => void): Promise<string> {
+    const apiKey = this.getApiKey();
+    const model = this.settings.selectedModel;
+    const maxRetries = 3;
+    let attempt = 0;
+
+    while (attempt < maxRetries) {
+      try {
+        const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`,
+            'HTTP-Referer': window.location.href, // Required by OpenRouter
+            'X-Title': 'Pustakam AI Book Generator' // Optional: for usage tracking
+          },
+          body: JSON.stringify({
+            model: model,
+            messages: [{ role: 'user', content: prompt }],
+            temperature: 0.7,
+            max_tokens: 8192,
+            stream: true
+          }),
+          signal
+        });
+
+        if (response.status === 429 || response.status === 503) {
+          const delay = Math.pow(2, attempt) * 1000;
+          await sleep(delay);
+          attempt++;
+          continue;
+        }
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData?.error?.message || `OpenRouter API Error: ${response.status}`);
+        }
+
+        if (!response.body) throw new Error('Response body is null');
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let fullContent = '';
+        let buffer = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+
+          for (const line of lines) {
+            const trimmedLine = line.trim();
+            if (trimmedLine.startsWith('data: ')) {
+              const jsonStr = trimmedLine.substring(6);
+              if (jsonStr === '[DONE]') continue;
+
+              try {
+                const data = JSON.parse(jsonStr);
+                const textPart = data?.choices?.[0]?.delta?.content || '';
+                if (textPart) {
+                  fullContent += textPart;
+                  if (onChunk) onChunk(textPart);
+                }
+              } catch (parseError) {
+                // Ignore parse errors for individual chunks
+              }
+            }
+          }
+        }
+
+        if (!fullContent) throw new Error('No content generated');
+        return fullContent;
+
+      } catch (error) {
+        if (error instanceof Error && error.name === 'AbortError') throw error;
+        attempt++;
+        if (attempt >= maxRetries) throw error;
+        await sleep(Math.pow(2, attempt) * 1000);
+      }
+    }
+    throw new Error('OpenRouter API failed after retries');
   }
 
   async generateRoadmap(session: BookSession, bookId: string): Promise<BookRoadmap> {
@@ -1364,7 +1462,6 @@ ${session.preferences?.includePracticalExercises ? '### Practice Exercises' : ''
     }
   }
 
-  // ✅ FIXED: Clear pause flag when book is completed
   async assembleFinalBook(book: BookProject, session: BookSession): Promise<void> {
     this.updateProgress(book.id, { status: 'assembling', progress: 90 });
 
@@ -1396,7 +1493,6 @@ ${session.preferences?.includePracticalExercises ? '### Practice Exercises' : ''
 
       this.clearCheckpoint(book.id);
       
-      // ✅ FIX: Clear pause flag when book is completed
       try {
         localStorage.removeItem(`pause_flag_${book.id}`);
         console.log('✓ Cleared pause flag for completed book:', book.id);
@@ -1422,7 +1518,8 @@ ${session.preferences?.includePracticalExercises ? '### Practice Exercises' : ''
       google: 'Google Gemini', 
       mistral: 'Mistral AI', 
       zhipu: 'ZhipuAI',
-      groq: 'Groq' // ✅ NEW
+      groq: 'Groq',
+      openrouter: 'OpenRouter' // ✅ NEW
     };
     return names[this.settings.selectedProvider] || 'AI';
   }
