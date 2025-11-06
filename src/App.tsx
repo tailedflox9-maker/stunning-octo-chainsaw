@@ -82,6 +82,7 @@ function App() {
     generationStatus.totalWordsGenerated || totalWordsGenerated
   );
 
+  // ✅ FIX: Clean up pause flags for completed books on mount
   useEffect(() => {
     books.forEach(book => {
       if (book.status === 'completed') {
@@ -93,7 +94,7 @@ function App() {
         }
       }
     });
-  }, []);
+  }, []); // Run only once on mount
 
   useEffect(() => {
     if (currentBook && currentBook.status === 'generating_content') {
@@ -198,11 +199,11 @@ function App() {
     };
   }, [isMobile, sidebarOpen]);
 
-  const hasApiKey = !!(settings.googleApiKey || settings.mistralApiKey || settings.zhipuApiKey || settings.groqApiKey || settings.openrouterApiKey);
+  const hasApiKey = !!(settings.googleApiKey || settings.mistralApiKey || settings.zhipuApiKey || settings.groqApiKey); // ✅ UPDATED
 
   const getAlternativeModels = () => {
     const alternatives: Array<{provider: ModelProvider; model: string; name: string}> = [];
-  
+
     if (settings.googleApiKey && settings.selectedProvider !== 'google') {
       alternatives.push({
         provider: 'google',
@@ -210,7 +211,7 @@ function App() {
         name: 'Google Gemini 2.5 Flash'
       });
     }
-  
+
     if (settings.mistralApiKey && settings.selectedProvider !== 'mistral') {
       alternatives.push({
         provider: 'mistral',
@@ -218,7 +219,7 @@ function App() {
         name: 'Mistral Small'
       });
     }
-  
+
     if (settings.zhipuApiKey && settings.selectedProvider !== 'zhipu') {
       alternatives.push({
         provider: 'zhipu',
@@ -226,7 +227,8 @@ function App() {
         name: 'GLM 4.5 Flash'
       });
     }
-  
+
+    // ✅ NEW: Add Groq alternatives
     if (settings.groqApiKey && settings.selectedProvider !== 'groq') {
       alternatives.push({
         provider: 'groq',
@@ -234,16 +236,7 @@ function App() {
         name: 'Groq Llama 3.3 70B'
       });
     }
-  
-    // ✅ NEW: Add OpenRouter alternatives
-    if (settings.openrouterApiKey && settings.selectedProvider !== 'openrouter') {
-      alternatives.push({
-        provider: 'openrouter',
-        model: 'deepseek/deepseek-r1:free',
-        name: 'OpenRouter DeepSeek R1 (FREE)'
-      });
-    }
-  
+
     return alternatives;
   };
 
@@ -307,6 +300,7 @@ function App() {
     }
   };
 
+  // ✅ FIXED: Clear pause flag when selecting completed books
   const handleSelectBook = (id: string | null) => {
     setCurrentBookId(id);
     if (id) {
@@ -314,6 +308,7 @@ function App() {
 
       const book = books.find(b => b.id === id);
       if (book) {
+        // ✅ FIX: Clear pause flag if book is completed
         if (book.status === 'completed') {
           try {
             localStorage.removeItem(`pause_flag_${id}`);
@@ -322,6 +317,7 @@ function App() {
             console.warn('Failed to clear pause flag:', error);
           }
           
+          // Reset generation status for completed books
           setGenerationStatus({
             status: 'idle',
             totalProgress: 0,
