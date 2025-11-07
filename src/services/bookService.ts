@@ -736,27 +736,31 @@ class BookGenerationService {
   }
 
   private buildRoadmapPrompt(session: BookSession): string {
+    const reasoningPrompt = session.reasoning
+      ? `\n- Reasoning/Motivation for the book: ${session.reasoning}`
+      : '';
+  
     return `Create a comprehensive learning roadmap for: "${session.goal}"
-
-Requirements:
-- Generate a suitable number of modules, with a minimum of 8. The final number should be based on the complexity and scope of the learning goal.
-- Each module should have a clear title and 3-5 specific learning objectives
-- Estimate realistic reading/study time for each module
-- Target audience: ${session.targetAudience || 'general learners'}
-- Complexity: ${session.complexityLevel || 'intermediate'}
-
-Return ONLY valid JSON:
-{
-  "modules": [
-    {
-      "title": "Module Title",
-      "objectives": ["Objective 1", "Objective 2"],
-      "estimatedTime": "2-3 hours"
-    }
-  ],
-  "estimatedReadingTime": "20-25 hours",
-  "difficultyLevel": "intermediate"
-}`;
+  
+  Requirements:
+  - Generate a suitable number of modules, with a minimum of 8. The final number should be based on the complexity and scope of the learning goal.
+  - Each module should have a clear title and 3-5 specific learning objectives
+  - Estimate realistic reading/study time for each module
+  - Target audience: ${session.targetAudience || 'general learners'}
+  - Complexity: ${session.complexityLevel || 'intermediate'}${reasoningPrompt}
+  
+  Return ONLY valid JSON:
+  {
+    "modules": [
+      {
+        "title": "Module Title",
+        "objectives": ["Objective 1", "Objective 2"],
+        "estimatedTime": "2-3 hours"
+      }
+    ],
+    "estimatedReadingTime": "20-25 hours",
+    "difficultyLevel": "intermediate"
+  }`;
   }
 
   private async parseRoadmapResponse(response: string, session: BookSession): Promise<BookRoadmap> {
@@ -962,31 +966,35 @@ Return ONLY valid JSON:
       `\n\nPREVIOUS MODULES CONTEXT:\n${previousModules.slice(-2).map(m =>
         `${m.title}: ${m.content.substring(0, 300)}...`
       ).join('\n\n')}` : '';
-
+  
+    const reasoningPrompt = session.reasoning
+      ? `\n- Book's Core Reasoning: ${session.reasoning}`
+      : '';
+  
     return `Generate a comprehensive chapter for: "${roadmapModule.title}"
-
-CONTEXT:
-- Learning Goal: ${session.goal}
-- Module ${moduleIndex} of ${totalModules}
-- Objectives: ${roadmapModule.objectives.join(', ')}
-- Target Audience: ${session.targetAudience || 'general learners'}
-- Complexity: ${session.complexityLevel || 'intermediate'}${contextSummary}
-
-REQUIREMENTS:
-- Write 2000-4000 words
-- ${isFirstModule ? 'Provide introduction' : 'Build upon previous content'}
-- Use ## markdown headers
-- Include bullet points and lists
-${session.preferences?.includeExamples ? '- Include practical examples' : ''}
-${session.preferences?.includePracticalExercises ? '- Add exercises at the end' : ''}
-
-STRUCTURE:
-## ${roadmapModule.title}
-### Introduction
-### Core Concepts
-### Practical Application
-${session.preferences?.includePracticalExercises ? '### Practice Exercises' : ''}
-### Key Takeaways`;
+  
+  CONTEXT:
+  - Learning Goal: ${session.goal}
+  - Module ${moduleIndex} of ${totalModules}
+  - Objectives: ${roadmapModule.objectives.join(', ')}
+  - Target Audience: ${session.targetAudience || 'general learners'}
+  - Complexity: ${session.complexityLevel || 'intermediate'}${reasoningPrompt}${contextSummary}
+  
+  REQUIREMENTS:
+  - Write 2000-4000 words
+  - ${isFirstModule ? 'Provide introduction' : 'Build upon previous content'}
+  - Use ## markdown headers
+  - Include bullet points and lists
+  ${session.preferences?.includeExamples ? '- Include practical examples' : ''}
+  ${session.preferences?.includePracticalExercises ? '- Add exercises at the end' : ''}
+  
+  STRUCTURE:
+  ## ${roadmapModule.title}
+  ### Introduction
+  ### Core Concepts
+  ### Practical Application
+  ${session.preferences?.includePracticalExercises ? '### Practice Exercises' : ''}
+  ### Key Takeaways`;
   }
 
   async generateAllModulesWithRecovery(book: BookProject, session: BookSession): Promise<void> {
