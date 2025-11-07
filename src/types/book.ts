@@ -15,6 +15,7 @@ export interface BookProject {
   finalBook?: string; // Complete markdown content
   error?: string;
   category: BookCategory;
+  reasoning?: string; // Optional field for the book's rationale
 }
 
 export interface BookRoadmap {
@@ -61,4 +62,5 @@ export interface BookSession {
     includePracticalExercises: boolean;
     includeQuizzes: boolean;
   };
+  reasoning?: string; // Optional field for the book's rationale
 }
