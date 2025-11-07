@@ -52,6 +52,7 @@ import {
   CheckCircle2,
   Pause,
   AlertTriangle,
+  ChevronDown
 } from 'lucide-react';
 import { BookProject, BookSession } from '../types/book';
 import { bookService } from '../services/bookService';
@@ -1313,11 +1314,13 @@ export function BookView({
 }: BookViewProps) {
   const [detailTab, setDetailTab] = useState<'overview' | 'analytics' | 'read'>('overview');
   const [localIsGenerating, setLocalIsGenerating] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [formData, setFormData] = useState<BookSession>({
     goal: '',
     language: 'en',
     targetAudience: '',
     complexityLevel: 'intermediate',
+    reasoning: '',
     preferences: {
       includeExamples: true,
       includePracticalExercises: false,
@@ -1366,6 +1369,7 @@ export function BookView({
         language: currentBook.language,
         targetAudience: formData.targetAudience || currentBook.goal,
         complexityLevel: formData.complexityLevel || 'intermediate',
+        reasoning: formData.reasoning || currentBook.reasoning,
         preferences: formData.preferences || {
           includeExamples: true,
           includePracticalExercises: false,
@@ -1392,6 +1396,7 @@ export function BookView({
         language: currentBook.language,
         targetAudience: formData.targetAudience || currentBook.goal,
         complexityLevel: formData.complexityLevel || 'intermediate',
+        reasoning: formData.reasoning || currentBook.reasoning,
         preferences: formData.preferences || {
           includeExamples: true,
           includePracticalExercises: false,
@@ -1410,6 +1415,7 @@ export function BookView({
         language: currentBook.language,
         targetAudience: formData.targetAudience || currentBook.goal,
         complexityLevel: formData.complexityLevel || 'intermediate',
+        reasoning: formData.reasoning || currentBook.reasoning,
         preferences: formData.preferences || {
           includeExamples: true,
           includePracticalExercises: false,
@@ -1589,6 +1595,39 @@ export function BookView({
                     />
                   </div>
                 </div>
+
+                {/* Advanced Options Toggle */}
+                <div className="border-t border-[var(--color-border)] pt-4">
+                  <button
+                    onClick={() => setShowAdvanced(!showAdvanced)}
+                    className="flex items-center justify-between w-full text-left text-sm font-semibold text-gray-400 hover:text-white transition-colors"
+                  >
+                    <span>Advanced Options</span>
+                    <ChevronDown
+                      className={`w-4 h-4 transition-transform duration-200 ${
+                        showAdvanced ? 'rotate-180' : ''
+                      }`}
+                    />
+                  </button>
+                </div>
+                
+                {/* Reasoning Field (Conditional) */}
+                {showAdvanced && (
+                    <div className="animate-fade-in-up">
+                        <label className="flex items-center gap-2 font-semibold mb-2">
+                        <Sparkles size={16} className="text-purple-400" />
+                        Reasoning (Optional)
+                        </label>
+                        <textarea
+                        value={formData.reasoning}
+                        onChange={(e) => setFormData((p) => ({ ...p, reasoning: e.target.value }))}
+                        placeholder="e.g., Why is this book being created? What problem does it solve or what unique perspective does it offer?"
+                        className="textarea-style focus:ring-purple-500/50"
+                        rows={3}
+                        />
+                    </div>
+                )}
+
 
                 {/* Preferences */}
                 <div>
