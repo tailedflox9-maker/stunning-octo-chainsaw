@@ -371,6 +371,7 @@ function App() {
       updatedAt: new Date(),
       modules: [],
       category: 'general',
+      reasoning: session.reasoning,
     };
     setBooks(prev => [newBook, ...prev]);
 
